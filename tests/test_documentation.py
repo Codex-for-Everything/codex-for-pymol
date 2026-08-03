@@ -1,0 +1,101 @@
+from pathlib import Path
+import re
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CHINESE_DOCS = sorted((ROOT / "docs").glob("*.zh-CN.md"))
+CJK = r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
+CHINESE_PUNCTUATION = "，。；：、！？）》】”’"
+
+
+def _outside_fences(lines):
+    outside = []
+    fence = None
+    for line in lines:
+        match = re.match(r"^\s*(```+|~~~+)", line)
+        if match:
+            marker = match.group(1)
+            if fence is None:
+                fence = marker[0]
+            elif marker.startswith(fence):
+                fence = None
+            outside.append(False)
+        else:
+            outside.append(fence is None)
+    return outside
+
+
+def _is_structural(line):
+    return not line.strip() or bool(
+        re.match(
+            r"^\s*(?:#{1,6}\s|\||>|[-+*]\s|\d+\.\s|---+\s*$|___+\s*$)",
+            line,
+        )
+    )
+
+
+def _is_list_item(line):
+    return bool(re.match(r"^\s*(?:[-+*]|\d+\.)\s", line))
+
+
+class DocumentationTests(unittest.TestCase):
+    def test_chinese_prose_is_not_hard_wrapped(self):
+        failures = []
+        for path in CHINESE_DOCS:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            outside = _outside_fences(lines)
+            for index, (current, following) in enumerate(zip(lines, lines[1:]), 1):
+                hard_wrapped_paragraph = (
+                    outside[index - 1]
+                    and outside[index]
+                    and not _is_structural(current)
+                    and not _is_structural(following)
+                )
+                hard_wrapped_list_item = (
+                    outside[index - 1]
+                    and outside[index]
+                    and _is_list_item(current)
+                    and not _is_structural(following)
+                )
+                hard_wrapped_quote = (
+                    outside[index - 1]
+                    and outside[index]
+                    and current.lstrip().startswith(">")
+                    and following.lstrip().startswith(">")
+                )
+                if hard_wrapped_paragraph or hard_wrapped_list_item or hard_wrapped_quote:
+                    failures.append(f"{path.relative_to(ROOT)}:{index}")
+
+        self.assertEqual(
+            failures,
+            [],
+            "Chinese prose must use one source line per paragraph; soft wraps "
+            "render as visible spaces on GitHub",
+        )
+
+    def test_chinese_prose_has_no_spacing_artifacts(self):
+        cjk_space = re.compile(rf"[{CJK}] +[{CJK}]")
+        punctuation_space = re.compile(
+            rf"[{re.escape(CHINESE_PUNCTUATION)}] +"
+        )
+        space_before_punctuation = re.compile(
+            rf" +[{re.escape(CHINESE_PUNCTUATION)}]"
+        )
+        failures = []
+        for path in CHINESE_DOCS:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            outside = _outside_fences(lines)
+            for index, line in enumerate(lines, 1):
+                if outside[index - 1] and (
+                    cjk_space.search(line)
+                    or punctuation_space.search(line)
+                    or space_before_punctuation.search(line)
+                ):
+                    failures.append(f"{path.relative_to(ROOT)}:{index}")
+
+        self.assertEqual(failures, [])
+
+
+if __name__ == "__main__":
+    unittest.main()
