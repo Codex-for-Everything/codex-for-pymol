@@ -97,6 +97,12 @@ class DocumentationTests(unittest.TestCase):
 
         self.assertNotIn("#PyMOL plugin installer", workflow)
         self.assertNotIn("#SHA-256 checksum", workflow)
+        self.assertIn("RELEASE_INSTALL_NOTES: |-", workflow)
+        self.assertRegex(
+            workflow,
+            r"重启 PyMOL。\n\s*\n\s*Installation:",
+        )
+        self.assertIn('--notes "$RELEASE_INSTALL_NOTES"', workflow)
 
     def test_privacy_docs_match_the_ephemeral_thread_contract(self):
         implementation = (

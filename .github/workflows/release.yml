@@ -97,12 +97,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_INSTALL_NOTES: |-
+            安装：下载 codex-for-pymol.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。从 0.2.x 或更早版本升级时，请先卸载旧版插件并重启 PyMOL。
+
+            Installation: download codex-for-pymol.zip and install it directly with the PyMOL Plugin Manager (do not extract it). When upgrading from 0.2.x or earlier, uninstall the old plugin and restart PyMOL first.
         run: |
           gh release create "$RELEASE_TAG" \
             "release-assets/codex-for-pymol.zip" \
             "release-assets/SHA256SUMS.txt" \
             --verify-tag \
             --generate-notes \
-            --notes "安装：下载 codex-for-pymol.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。从 0.2.x 或更早版本升级时，请先卸载旧版插件并重启 PyMOL。 Installation: download codex-for-pymol.zip and install it directly with the PyMOL Plugin Manager (do not extract it). When upgrading from 0.2.x or earlier, uninstall the old plugin and restart PyMOL first." \
+            --notes "$RELEASE_INSTALL_NOTES" \
             --title "Codex for PyMOL ${RELEASE_TAG#v}" \
             --latest
