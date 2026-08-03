@@ -50,7 +50,7 @@ $env:CODEX_FOR_PYMOL_EXECUTABLE = "C:\Tools\codex.exe"
 
 ### 安装发布版本
 
-打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载文件名完全一致的 `codex-for-pymol.zip`。不要选择 GitHub 自动生成的 **Source code (zip)** 或 **Source code (tar.gz)**；它们只是仓库源码快照，不是可安装的 PyMOL 插件。不要解压插件 zip。
+打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载 `codex-for-pymol-X.Y.Z.zip`，其中 `X.Y.Z` 应与发布版本号一致。不要选择 GitHub 自动生成的 **Source code (zip)** 或 **Source code (tar.gz)**；它们只是仓库源码快照，不是可安装的 PyMOL 插件。不要解压插件 zip。
 
 在 PyMOL 中选择：
 
@@ -78,7 +78,7 @@ Windows PowerShell：
 py scripts/build_plugin.py
 ```
 
-如果没有 `py`，但 `python` 已加入 `PATH`，可以改用 `python`。构建完成后，按照发布版相同的方式安装脚本生成的 `dist/codex-for-pymol.zip`。
+如果没有 `py`，但 `python` 已加入 `PATH`，可以改用 `python`。构建完成后，按照发布版相同的方式安装脚本生成的 `dist/codex-for-pymol-X.Y.Z.zip`。
 
 ## 3. 开始第一次对话
 

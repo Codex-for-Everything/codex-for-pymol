@@ -31,7 +31,7 @@ Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直�
 
 ## 快速开始
 
-1. 打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载 `codex-for-pymol.zip`。不要下载 GitHub 自动生成的 **Source code** 压缩包，也不要解压插件 zip。
+1. 打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载 `codex-for-pymol-X.Y.Z.zip`，其中 `X.Y.Z` 是发布版本号。不要下载 GitHub 自动生成的 **Source code** 压缩包，也不要解压插件 zip。
 2. 在 PyMOL 中打开：
 
    ```text
@@ -98,7 +98,7 @@ Codex 准备下载结构或读取本地结构文件时，PyMOL 会先请求你�
 
 ## 开发
 
-本节命令供开发者使用。普通 PyMOL 用户应安装 GitHub Release 中的 `codex-for-pymol.zip`，不要安装 wheel、Python 源码包或 GitHub 自动生成的源码压缩包。
+本节命令供开发者使用。普通 PyMOL 用户应安装 GitHub Release 中的 `codex-for-pymol-X.Y.Z.zip`，不要安装 wheel、Python 源码包或 GitHub 自动生成的源码压缩包。
 
 运行单元测试：
 

@@ -16,9 +16,11 @@ RELEASE_DOCS = [
     ROOT / "docs" / "RELEASING.md",
     ROOT / "docs" / "RELEASING.zh-CN.md",
 ]
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 LATEST_RELEASE_URL = (
     "https://github.com/wuhuawei1996/codex-for-pymol/releases/latest"
 )
+VERSIONED_ASSET_EXAMPLE = "codex-for-pymol-X.Y.Z.zip"
 CJK = r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
 CHINESE_PUNCTUATION = "，。；：、！？）》】”’"
 
@@ -77,18 +79,26 @@ class DocumentationTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assertIn(LATEST_RELEASE_URL, text)
-                self.assertIn("codex-for-pymol.zip", text)
+                self.assertIn(VERSIONED_ASSET_EXAMPLE, text)
+                self.assertNotIn("`codex-for-pymol.zip`", text)
                 self.assertIn("Source code", text)
 
+    @unittest.skipUnless(
+        RELEASE_WORKFLOW.is_file(),
+        "GitHub workflow is intentionally absent from source distributions",
+    )
     def test_release_docs_match_the_automated_assets(self):
-        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
-            encoding="utf-8"
+        workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("dist/codex-for-pymol-*.zip", workflow)
+        self.assertIn(
+            'package_path="release-assets/codex-for-pymol-${release_version}.zip"',
+            workflow,
         )
-        for asset in ("codex-for-pymol.zip", "SHA256SUMS.txt"):
-            self.assertIn(asset, workflow)
-            for path in RELEASE_DOCS:
-                with self.subTest(asset=asset, path=path.relative_to(ROOT)):
-                    self.assertIn(asset, path.read_text(encoding="utf-8"))
+        for path in RELEASE_DOCS:
+            with self.subTest(path=path.relative_to(ROOT)):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn(VERSIONED_ASSET_EXAMPLE, text)
+                self.assertIn("SHA256SUMS.txt", text)
 
         for path in RELEASE_DOCS:
             text = path.read_text(encoding="utf-8")
@@ -102,7 +112,7 @@ class DocumentationTests(unittest.TestCase):
             workflow,
             r"重启 PyMOL。\n\s*\n\s*Installation:",
         )
-        self.assertIn('--notes "$RELEASE_INSTALL_NOTES"', workflow)
+        self.assertIn('--notes "$release_notes"', workflow)
 
     def test_privacy_docs_match_the_ephemeral_thread_contract(self):
         implementation = (

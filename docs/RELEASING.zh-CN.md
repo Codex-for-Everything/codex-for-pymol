@@ -45,7 +45,7 @@ git push origin "v$VERSION"
 5. 生成 SHA-256 校验文件；
 6. 创建带有自动生成更新说明的 GitHub Release。
 
-公开 Release 中包含 `codex-for-pymol.zip` 和 `SHA256SUMS.txt`。GitHub 会自动提供源码 ZIP 和 tar 压缩包。工作流仍会构建 wheel 和 Python 源码包来检查打包配置，但不会把它们作为 Release 附件，因为普通 PyMOL 用户应当安装插件 ZIP。
+公开 Release 中包含带版本号的 `codex-for-pymol-X.Y.Z.zip` 和 `SHA256SUMS.txt`。GitHub 会自动提供源码 ZIP 和 tar 压缩包。工作流仍会构建 wheel 和 Python 源码包来检查打包配置，但不会把它们作为 Release 附件，因为普通 PyMOL 用户应当安装插件 ZIP。
 
 推送标签后，请等待 **Release** 工作流成功结束，不要再手动创建 Release 或上传文件。只有工作流发布成功后，[Releases 页面](https://github.com/wuhuawei1996/codex-for-pymol/releases)才会出现可供下载的安装包。
 

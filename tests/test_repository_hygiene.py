@@ -34,7 +34,7 @@ TEXT_SUFFIXES = {".md", ".py", ".toml", ".txt", ".yml", ".yaml"}
 
 
 def repository_text_files():
-    paths = list(TEXT_FILES)
+    paths = [path for path in TEXT_FILES if path.is_file()]
     for root in TEXT_ROOTS:
         if not root.exists():
             continue
@@ -81,6 +81,17 @@ def repository_managed_files():
 
 
 class RepositoryHygieneTests(unittest.TestCase):
+    def test_text_inventory_ignores_repository_only_files_in_an_sdist(self):
+        missing = ROOT / "repository-only-file-that-is-not-packaged"
+        with mock.patch(
+            __name__ + ".TEXT_FILES",
+            [missing],
+        ), mock.patch(
+            __name__ + ".TEXT_ROOTS",
+            [missing],
+        ):
+            self.assertEqual(repository_text_files(), [])
+
     def test_managed_file_inventory_uses_the_git_index(self):
         completed = mock.Mock(
             returncode=0,

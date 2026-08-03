@@ -58,12 +58,22 @@ jobs:
       - name: Build PyMOL plugin
         run: python scripts/build_plugin.py
       - name: Import plugin zip
-        run: python -c "import sys; sys.path.insert(0, 'dist/codex-for-pymol.zip'); import codex_for_pymol; print(codex_for_pymol.__version__)"
+        run: >-
+          python -c "import sys; from pathlib import Path;
+          packages = list(Path('dist').glob('codex-for-pymol-*.zip'));
+          assert len(packages) == 1, packages;
+          package = packages[0];
+          sys.path.insert(0, str(package));
+          import codex_for_pymol;
+          assert package.name == f'codex-for-pymol-{codex_for_pymol.__version__}.zip';
+          print(codex_for_pymol.__version__)"
       - name: Generate SHA-256 checksum
         run: >-
           python -c "from hashlib import sha256;
           from pathlib import Path;
-          package = Path('dist/codex-for-pymol.zip');
+          packages = list(Path('dist').glob('codex-for-pymol-*.zip'));
+          assert len(packages) == 1, packages;
+          package = packages[0];
           digest = sha256(package.read_bytes()).hexdigest();
           Path('dist/SHA256SUMS.txt').write_text(f'{digest}  {package.name}\n', encoding='ascii')"
       - name: Preserve release assets
@@ -71,7 +81,7 @@ jobs:
         with:
           name: release-assets-${{ github.ref_name }}
           path: |
-            dist/codex-for-pymol.zip
+            dist/codex-for-pymol-*.zip
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
@@ -98,15 +108,23 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_INSTALL_NOTES: |-
-            安装：下载 codex-for-pymol.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。从 0.2.x 或更早版本升级时，请先卸载旧版插件并重启 PyMOL。
+            安装：下载 codex-for-pymol-VERSION.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。从 0.2.x 或更早版本升级时，请先卸载旧版插件并重启 PyMOL。
 
-            Installation: download codex-for-pymol.zip and install it directly with the PyMOL Plugin Manager (do not extract it). When upgrading from 0.2.x or earlier, uninstall the old plugin and restart PyMOL first.
+            Installation: download codex-for-pymol-VERSION.zip and install it directly with the PyMOL Plugin Manager (do not extract it). When upgrading from 0.2.x or earlier, uninstall the old plugin and restart PyMOL first.
         run: |
+          set -euo pipefail
+          release_version="${RELEASE_TAG#v}"
+          package_path="release-assets/codex-for-pymol-${release_version}.zip"
+          release_notes="${RELEASE_INSTALL_NOTES//VERSION/$release_version}"
+          if [[ ! -f "$package_path" ]]; then
+            echo "::error::Missing release package: $package_path"
+            exit 1
+          fi
           gh release create "$RELEASE_TAG" \
-            "release-assets/codex-for-pymol.zip" \
+            "$package_path" \
             "release-assets/SHA256SUMS.txt" \
             --verify-tag \
             --generate-notes \
-            --notes "$RELEASE_INSTALL_NOTES" \
+            --notes "$release_notes" \
             --title "Codex for PyMOL ${RELEASE_TAG#v}" \
             --latest

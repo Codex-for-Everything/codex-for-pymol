@@ -45,4 +45,12 @@ jobs:
       - name: Build PyMOL plugin
         run: python scripts/build_plugin.py
       - name: Import plugin zip
-        run: python -c "import sys; sys.path.insert(0, 'dist/codex-for-pymol.zip'); import codex_for_pymol; print(codex_for_pymol.__version__)"
+        run: >-
+          python -c "import sys; from pathlib import Path;
+          packages = list(Path('dist').glob('codex-for-pymol-*.zip'));
+          assert len(packages) == 1, packages;
+          package = packages[0];
+          sys.path.insert(0, str(package));
+          import codex_for_pymol;
+          assert package.name == f'codex-for-pymol-{codex_for_pymol.__version__}.zip';
+          print(codex_for_pymol.__version__)"

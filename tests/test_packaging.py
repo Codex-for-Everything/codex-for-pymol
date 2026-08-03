@@ -49,7 +49,10 @@ class PackagingTests(unittest.TestCase):
             (ROOT / "src" / "codex_for_pymol" / "__init__.py").is_file()
         )
         self.assertFalse((ROOT / "src" / "pymol_codex").exists())
-        self.assertEqual(module.OUTPUT.name, "codex-for-pymol.zip")
+        self.assertEqual(
+            module.OUTPUT.name,
+            "codex-for-pymol-{}.zip".format(__version__),
+        )
 
     def test_project_version_matches_package_version(self):
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -58,6 +61,17 @@ class PackagingTests(unittest.TestCase):
 
         self.assertIsNotNone(match, "pyproject.toml must declare [project].version")
         self.assertEqual(match.group(1), __version__)
+
+    def test_plugin_filename_rejects_an_unsafe_version(self):
+        module = _load_build_module()
+        with tempfile.TemporaryDirectory() as directory:
+            version_file = Path(directory) / "version.py"
+            version_file.write_text(
+                '__version__ = "../../unexpected"\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "release version"):
+                module.read_version(version_file)
 
     def test_plugin_zip_contains_only_portable_source_files(self):
         module = _load_build_module()
@@ -160,7 +174,11 @@ class PackagingTests(unittest.TestCase):
     def test_real_plugin_zip_imports_in_an_isolated_interpreter(self):
         module = _load_build_module()
         with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "dist" / "codex-for-pymol.zip"
+            output = (
+                Path(directory)
+                / "dist"
+                / "codex-for-pymol-{}.zip".format(__version__)
+            )
             _build_with(module, ROOT / "src" / "codex_for_pymol", output)
 
             with ZipFile(output) as archive:

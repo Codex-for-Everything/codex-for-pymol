@@ -50,7 +50,7 @@ The **Release** workflow then:
 5. generates a SHA-256 checksum; and
 6. publishes a GitHub Release with generated release notes.
 
-The public release contains `codex-for-pymol.zip` and `SHA256SUMS.txt`.
+The public release contains `codex-for-pymol-X.Y.Z.zip` and `SHA256SUMS.txt`.
 GitHub supplies source ZIP and tar archives automatically. The wheel and Python
 source distribution are built as packaging checks but are not release assets,
 because ordinary PyMOL users should install the plugin ZIP.

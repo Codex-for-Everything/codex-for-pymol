@@ -43,7 +43,7 @@ The plugin does not install extra Python packages into PyMOL.
 
 ## Quick start
 
-1. Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest) and download `codex-for-pymol.zip` from **Assets**. Do not download GitHub's automatically generated **Source code** archives, and do not extract the plugin zip.
+1. Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest) and download `codex-for-pymol-X.Y.Z.zip` from **Assets**, where `X.Y.Z` is the release version. Do not download GitHub's automatically generated **Source code** archives, and do not extract the plugin zip.
 2. In PyMOL, open:
 
    ```text
@@ -150,7 +150,7 @@ Undo points are removed during a normal shutdown. See
 ## Development
 
 The commands in this section are for contributors. Ordinary PyMOL users should
-install `codex-for-pymol.zip` from a GitHub Release, not a wheel, source
+install `codex-for-pymol-X.Y.Z.zip` from a GitHub Release, not a wheel, source
 distribution, or GitHub source archive.
 
 Run the unit tests:
