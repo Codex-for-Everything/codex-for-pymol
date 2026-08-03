@@ -1,0 +1,44 @@
+# Python bytecode and test/tool caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local environments and credentials
+.env
+.env.*
+!.env.example
+.codex/
+auth.json
+credentials.json
+.netrc
+.pypirc
+*.pem
+*.key
+*.p12
+*.pfx
+.venv/
+venv/
+env/
+
+# Build and packaging outputs
+build/
+dist/
+
+# IDE, OS, and transient files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.tmp
+*.swp
+*.swo
+*~
