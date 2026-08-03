@@ -25,10 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Verify release commit belongs to main
@@ -77,7 +77,7 @@ jobs:
           digest = sha256(package.read_bytes()).hexdigest();
           Path('dist/SHA256SUMS.txt').write_text(f'{digest}  {package.name}\n', encoding='ascii')"
       - name: Preserve release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: release-assets-${{ github.ref_name }}
           path: |
@@ -95,7 +95,7 @@ jobs:
       contents: write
     steps:
       - name: Download release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: release-assets-${{ github.ref_name }}
           path: release-assets

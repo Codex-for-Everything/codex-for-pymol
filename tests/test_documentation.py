@@ -56,6 +56,28 @@ def _is_list_item(line):
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_workflows_use_node24_action_generations(self):
+        workflows = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+        )
+        for action in (
+            "actions/checkout@v5",
+            "actions/setup-python@v6",
+            "actions/upload-artifact@v5",
+            "actions/download-artifact@v5",
+        ):
+            with self.subTest(action=action):
+                self.assertIn(action, workflows)
+        for deprecated in (
+            "actions/checkout@v4",
+            "actions/setup-python@v5",
+            "actions/upload-artifact@v4",
+            "actions/download-artifact@v4",
+        ):
+            with self.subTest(deprecated=deprecated):
+                self.assertNotIn(deprecated, workflows)
+
     def test_relative_markdown_links_resolve(self):
         failures = []
         for path in [ROOT / "README.md"] + sorted(
