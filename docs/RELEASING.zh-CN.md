@@ -19,11 +19,21 @@ Release 由 GitHub Actions 在云端构建并发布，维护者不需要从自�
 
 ## 发布 Release
 
-创建带说明的标签。标签必须包含开头的 `v`，并与代码版本完全一致，然后推送该标签：
+在项目根目录读取源码中的版本号，创建包含开头 `v` 的同版本带说明标签，然后推送。macOS 或 Linux：
 
 ```bash
-git tag -a v0.2.34 -m "PyMOL Codex v0.2.34"
-git push origin v0.2.34
+VERSION=$(PYTHONPATH=src python3 -c "from pymol_codex.version import __version__; print(__version__)")
+git tag -a "v${VERSION}" -m "PyMOL Codex v${VERSION}"
+git push origin "v${VERSION}"
+```
+
+Windows PowerShell：
+
+```powershell
+$env:PYTHONPATH = "src"
+$VERSION = py -c "from pymol_codex.version import __version__; print(__version__)"
+git tag -a "v$VERSION" -m "PyMOL Codex v$VERSION"
+git push origin "v$VERSION"
 ```
 
 随后 **Release** 工作流会自动：
@@ -37,10 +47,12 @@ git push origin v0.2.34
 
 公开 Release 中包含 `pymol_codex_plugin.zip` 和 `SHA256SUMS.txt`。GitHub 会自动提供源码 ZIP 和 tar 压缩包。工作流仍会构建 wheel 和 Python 源码包来检查打包配置，但不会把它们作为 Release 附件，因为普通 PyMOL 用户应当安装插件 ZIP。
 
+推送标签后，请等待 **Release** 工作流成功结束，不要再手动创建 Release 或上传文件。只有工作流发布成功后，[Releases 页面](https://github.com/wuhuawei1996/codex-for-pymol/releases)才会出现可供下载的安装包。
+
 整个过程不需要个人访问令牌、Codex 凭证或 API Key。最终任务只使用 GitHub 为当前工作流临时签发的仓库令牌，并且只申请 `contents: write` 权限。
 
 ## 发布失败时
 
 - 版本错误表示标签、`pyproject.toml` 与 `src/pymol_codex/version.py` 不一致。不要移动已经公开的版本标签；修正版本后发布一个新标签。
 - 最终任务出现 HTTP 403，通常表示仓库或组织策略禁止写入。检查 **Settings → Actions → General → Workflow permissions**。
-- 测试或构建失败时不会创建 Release。修复问题并提交，然后发布一个新的版本标签。
+- 测试或构建失败时不会创建 Release。修复问题并提交，然后发布一个新的版本标签；仅重新运行旧工作流不会把原标签移动到修复后的提交。

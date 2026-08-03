@@ -23,12 +23,22 @@ build or upload packages from their own computer.
 
 ## Publish a release
 
-Create an annotated tag that exactly matches the code version, including the
-leading `v`, and push it:
+From the project root, read the version from the package, create a matching
+annotated tag with a leading `v`, and push it. On macOS or Linux:
 
 ```bash
-git tag -a v0.2.34 -m "PyMOL Codex v0.2.34"
-git push origin v0.2.34
+VERSION=$(PYTHONPATH=src python3 -c "from pymol_codex.version import __version__; print(__version__)")
+git tag -a "v${VERSION}" -m "PyMOL Codex v${VERSION}"
+git push origin "v${VERSION}"
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:PYTHONPATH = "src"
+$VERSION = py -c "from pymol_codex.version import __version__; print(__version__)"
+git tag -a "v$VERSION" -m "PyMOL Codex v$VERSION"
+git push origin "v$VERSION"
 ```
 
 The **Release** workflow then:
@@ -45,6 +55,11 @@ GitHub supplies source ZIP and tar archives automatically. The wheel and Python
 source distribution are built as packaging checks but are not release assets,
 because ordinary PyMOL users should install the plugin ZIP.
 
+After pushing the tag, wait for the **Release** workflow to finish successfully.
+Do not create or upload the Release manually. The downloadable installer appears
+on the [Releases page](https://github.com/wuhuawei1996/codex-for-pymol/releases)
+only after the workflow publishes it.
+
 No personal access token, Codex credential, or API key is required. The final
 job uses GitHub's short-lived repository token with only `contents: write`
 permission.
@@ -58,4 +73,5 @@ permission.
   be preventing write access. Check **Settings → Actions → General → Workflow
   permissions**.
 - A failed test or build does not create a Release. Fix the problem, commit it,
-  and publish a new version tag.
+  and publish a new version tag. Re-running the old workflow does not move its
+  tag to the corrected commit.

@@ -50,7 +50,7 @@ $env:PYMOL_CODEX_EXECUTABLE = "C:\Tools\codex.exe"
 
 ### 安装发布版本
 
-从对应的 GitHub Release 下载 `pymol_codex_plugin.zip`，不要解压。
+打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载文件名完全一致的 `pymol_codex_plugin.zip`。不要选择 GitHub 自动生成的 **Source code (zip)** 或 **Source code (tar.gz)**；它们只是仓库源码快照，不是可安装的 PyMOL 插件。不要解压插件 zip。
 
 在 PyMOL 中选择：
 

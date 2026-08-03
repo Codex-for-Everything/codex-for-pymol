@@ -5,6 +5,19 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CHINESE_DOCS = sorted((ROOT / "docs").glob("*.zh-CN.md"))
+INSTALL_DOCS = [
+    ROOT / "README.md",
+    ROOT / "docs" / "README.zh-CN.md",
+    ROOT / "docs" / "INSTALL.md",
+    ROOT / "docs" / "INSTALL.zh-CN.md",
+]
+RELEASE_DOCS = [
+    ROOT / "docs" / "RELEASING.md",
+    ROOT / "docs" / "RELEASING.zh-CN.md",
+]
+LATEST_RELEASE_URL = (
+    "https://github.com/wuhuawei1996/codex-for-pymol/releases/latest"
+)
 CJK = r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
 CHINESE_PUNCTUATION = "，。；：、！？）》】”’"
 
@@ -40,6 +53,29 @@ def _is_list_item(line):
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_installation_docs_identify_the_real_release_asset(self):
+        for path in INSTALL_DOCS:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn(LATEST_RELEASE_URL, text)
+                self.assertIn("pymol_codex_plugin.zip", text)
+                self.assertIn("Source code", text)
+
+    def test_release_docs_match_the_automated_assets(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        for asset in ("pymol_codex_plugin.zip", "SHA256SUMS.txt"):
+            self.assertIn(asset, workflow)
+            for path in RELEASE_DOCS:
+                with self.subTest(asset=asset, path=path.relative_to(ROOT)):
+                    self.assertIn(asset, path.read_text(encoding="utf-8"))
+
+        for path in RELEASE_DOCS:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertNotRegex(text, r"git tag -a v\d+\.\d+\.\d+")
+
     def test_chinese_prose_is_not_hard_wrapped(self):
         failures = []
         for path in CHINESE_DOCS:

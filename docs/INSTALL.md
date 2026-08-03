@@ -56,8 +56,7 @@ You can also choose the executable later with **选择 Codex…**.
 
 ### Install a release
 
-Download `pymol_codex_plugin.zip` from the matching GitHub Release. Do not
-extract it.
+Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest). Under **Assets**, download the file named exactly `pymol_codex_plugin.zip`. Do not choose GitHub's automatically generated **Source code (zip)** or **Source code (tar.gz)** archives; they are repository snapshots, not installable PyMOL plugins. Do not extract the plugin zip.
 
 In PyMOL, select:
 
