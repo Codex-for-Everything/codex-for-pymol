@@ -197,7 +197,7 @@ class PyMOLExecutor:
     ):
         self.cmd = cmd
         self.pymol_module = pymol_module
-        root = Path(cache_directory or tempfile.gettempdir()) / "pymol-codex"
+        root = Path(cache_directory or tempfile.gettempdir()) / "codex-for-pymol"
         _ensure_private_directory(root)
         self.snapshot_directory = root / "snapshots"
         checkpoint_root = (
@@ -553,14 +553,14 @@ class PyMOLExecutor:
         stdout = BoundedTextIO(200000)
         stderr = BoundedTextIO(200000)
         namespace = {
-            "__name__": "__pymol_codex__",
+            "__name__": "__codex_for_pymol__",
             "cmd": self.cmd,
             "pymol": self.pymol_module,
             "session": self.session,
         }
         try:
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                exec(compile(code, "<pymol-codex>", "exec"), namespace, namespace)
+                exec(compile(code, "<codex-for-pymol>", "exec"), namespace, namespace)
             result = namespace.get("__codex_result__")
             cleaned_session = to_jsonable(self.session)
             self.session = cleaned_session if isinstance(cleaned_session, dict) else {}

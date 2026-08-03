@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from pymol_codex.serializer import to_jsonable
+from codex_for_pymol.serializer import to_jsonable
 
 
 class DangerousRepr:

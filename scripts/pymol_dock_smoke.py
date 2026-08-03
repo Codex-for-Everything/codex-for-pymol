@@ -9,8 +9,8 @@ from pymol import cmd, gui
 from pymol.Qt import QtCore, QtGui, QtWidgets
 from pymol.Qt.utils import MainThreadCaller
 
-import pymol_codex
-from pymol_codex import docking, ui
+import codex_for_pymol
+from codex_for_pymol import docking, ui
 
 
 COMPLETION = threading.Event()
@@ -59,9 +59,9 @@ def run_test():
             dialog_class=TestCodexDialog,
         )
 
-        pymol_codex.__init_plugin__()
+        codex_for_pymol.__init_plugin__()
         QtWidgets.QApplication.processEvents()
-        dialog = pymol_codex._dialog
+        dialog = codex_for_pymol._dialog
         require(dialog is not None, "plugin did not open automatically at startup")
         dock = main_window.findChild(
             QtWidgets.QDockWidget,
@@ -257,7 +257,7 @@ def run_test():
             not dialog.full_python_enabled,
             "closing the real dock did not lock unrestricted Python",
         )
-        pymol_codex.open_dialog()
+        codex_for_pymol.open_dialog()
         require(dock.isVisible(), "Codex dock did not reopen")
         dialog.shutdown()
         log("Real PyMOL dock smoke test passed")

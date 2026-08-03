@@ -4,9 +4,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from pymol_codex.discovery import (
+from codex_for_pymol.discovery import (
     CodexFeatureDiscoveryError,
     app_server_arguments,
+    candidate_paths,
     discover_codex_features,
     find_codex,
     parse_feature_list,
@@ -15,6 +16,15 @@ from pymol_codex.discovery import (
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_project_named_environment_variable_is_preferred(self):
+        configured = "/configured/codex"
+        with mock.patch.dict(
+            os.environ,
+            {"CODEX_FOR_PYMOL_EXECUTABLE": configured},
+            clear=False,
+        ), mock.patch("codex_for_pymol.discovery.shutil.which", return_value=None):
+            self.assertEqual(candidate_paths()[0], configured)
+
     def test_explicit_executable_wins(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "codex"
@@ -30,7 +40,7 @@ class DiscoveryTests(unittest.TestCase):
             path.write_text("", encoding="utf-8")
             path.chmod(0o600)
             with mock.patch(
-                "pymol_codex.discovery.candidate_paths", return_value=[]
+                "codex_for_pymol.discovery.candidate_paths", return_value=[]
             ):
                 self.assertIsNone(find_codex(str(path)))
 
@@ -45,28 +55,63 @@ class DiscoveryTests(unittest.TestCase):
                 self.assertEqual(find_codex("~/bin/codex"), str(path))
 
     def test_windows_cmd_uses_comspec(self):
-        with mock.patch("pymol_codex.discovery.os.name", "nt"):
+        with mock.patch("codex_for_pymol.discovery.os.name", "nt"):
             with mock.patch.dict(os.environ, {"COMSPEC": "C:\\Windows\\cmd.exe"}):
                 program, args = process_invocation(
-                    "C:\\Tools\\codex.cmd",
+                    "C:\\Tools&Research\\codex.cmd",
                     {"shell_tool"},
                 )
         self.assertEqual(program, "C:\\Windows\\cmd.exe")
-        self.assertEqual(args[:3], ["/d", "/s", "/c"])
-        self.assertTrue(args[3].startswith("call "))
-        self.assertIn("app-server --stdio", args[3])
-        self.assertIn("--disable shell_tool", args[3])
+        self.assertEqual(args[:4], ["/d", "/v:off", "/s", "/c"])
+        self.assertTrue(
+            args[4].startswith('call "C:\\Tools&Research\\codex.cmd" ')
+        )
+        self.assertIn("app-server --stdio", args[4])
+        self.assertIn("--disable shell_tool", args[4])
+
+    def test_windows_cmd_rejects_characters_that_cannot_be_quoted_safely(self):
+        invalid_paths = [
+            "C:\\Tools%PATH%\\codex.cmd",
+            'C:\\Tools"Quoted\\codex.cmd',
+            "C:\\Tools\rcodex.cmd",
+            "C:\\Tools\ncodex.cmd",
+            "C:\\Tools\0codex.cmd",
+        ]
+        for path in invalid_paths:
+            with self.subTest(path=repr(path)), mock.patch(
+                "codex_for_pymol.discovery.os.name",
+                "nt",
+            ):
+                with self.assertRaisesRegex(ValueError, "invalid character"):
+                    process_invocation(path, {"shell_tool"})
 
     def test_direct_executable_uses_only_reported_features(self):
         program, args = process_invocation(
             "/opt/codex",
-            {"shell_tool", "respect_system_proxy"},
+            {
+                "fast_mode",
+                "future_host_capability",
+                "shell_tool",
+                "respect_system_proxy",
+            },
         )
         self.assertEqual(program, "/opt/codex")
-        self.assertEqual(args[:2], ["app-server", "--stdio"])
-        self.assertIn("shell_tool", args)
-        self.assertIn("respect_system_proxy", args)
-        self.assertIn("mcp_servers={}", args)
+        self.assertEqual(
+            args,
+            [
+                "app-server",
+                "--stdio",
+                "--disable",
+                "future_host_capability",
+                "--enable",
+                "respect_system_proxy",
+                "--disable",
+                "shell_tool",
+                "-c",
+                "mcp_servers={}",
+            ],
+        )
+        self.assertNotIn("fast_mode", args)
         self.assertNotIn("plugins", args)
 
     def test_feature_list_parser_ignores_removed_and_noise(self):
@@ -74,6 +119,7 @@ class DiscoveryTests(unittest.TestCase):
 shell_tool                 stable             true
 respect_system_proxy      under development  false
 old_tool                   removed            false
+invalid/name               stable             true
 WARNING: harmless
 """
         self.assertEqual(
@@ -87,7 +133,7 @@ WARNING: harmless
             stdout="shell_tool stable true\n",
         )
         with mock.patch(
-            "pymol_codex.discovery.subprocess.run",
+            "codex_for_pymol.discovery.subprocess.run",
             return_value=completed,
         ) as run:
             self.assertEqual(
@@ -102,16 +148,18 @@ WARNING: harmless
     def test_feature_discovery_failure_is_fail_closed(self):
         completed = mock.Mock(returncode=2, stdout="")
         with mock.patch(
-            "pymol_codex.discovery.subprocess.run",
+            "codex_for_pymol.discovery.subprocess.run",
             return_value=completed,
         ):
             self.assertIsNone(discover_codex_features("/opt/codex"))
         with mock.patch(
-            "pymol_codex.discovery.discover_codex_features",
+            "codex_for_pymol.discovery.discover_codex_features",
             return_value=None,
         ):
             with self.assertRaises(CodexFeatureDiscoveryError):
                 app_server_arguments("/opt/codex")
+        with self.assertRaises(CodexFeatureDiscoveryError):
+            app_server_arguments("/opt/codex", set())
 
 
 if __name__ == "__main__":

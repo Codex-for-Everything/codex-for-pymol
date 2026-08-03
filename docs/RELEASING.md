@@ -1,4 +1,4 @@
-# Releasing PyMOL Codex
+# Releasing Codex for PyMOL
 
 [简体中文](RELEASING.zh-CN.md)
 
@@ -10,7 +10,7 @@ build or upload packages from their own computer.
 1. Test the current commit in the intended PyMOL/Qt versions on macOS and
    Windows. Cloud tests do not replace these real GUI checks.
 2. Update the version in both `pyproject.toml` and
-   `src/pymol_codex/version.py`.
+   `src/codex_for_pymol/version.py`.
 3. Run the unit tests and build the plugin locally when possible:
 
    ```bash
@@ -27,8 +27,8 @@ From the project root, read the version from the package, create a matching
 annotated tag with a leading `v`, and push it. On macOS or Linux:
 
 ```bash
-VERSION=$(PYTHONPATH=src python3 -c "from pymol_codex.version import __version__; print(__version__)")
-git tag -a "v${VERSION}" -m "PyMOL Codex v${VERSION}"
+VERSION=$(PYTHONPATH=src python3 -c "from codex_for_pymol.version import __version__; print(__version__)")
+git tag -a "v${VERSION}" -m "Codex for PyMOL v${VERSION}"
 git push origin "v${VERSION}"
 ```
 
@@ -36,8 +36,8 @@ On Windows PowerShell:
 
 ```powershell
 $env:PYTHONPATH = "src"
-$VERSION = py -c "from pymol_codex.version import __version__; print(__version__)"
-git tag -a "v$VERSION" -m "PyMOL Codex v$VERSION"
+$VERSION = py -c "from codex_for_pymol.version import __version__; print(__version__)"
+git tag -a "v$VERSION" -m "Codex for PyMOL v$VERSION"
 git push origin "v$VERSION"
 ```
 
@@ -50,7 +50,7 @@ The **Release** workflow then:
 5. generates a SHA-256 checksum; and
 6. publishes a GitHub Release with generated release notes.
 
-The public release contains `pymol_codex_plugin.zip` and `SHA256SUMS.txt`.
+The public release contains `codex-for-pymol.zip` and `SHA256SUMS.txt`.
 GitHub supplies source ZIP and tar archives automatically. The wheel and Python
 source distribution are built as packaging checks but are not release assets,
 because ordinary PyMOL users should install the plugin ZIP.
@@ -67,7 +67,7 @@ permission.
 ## If publication fails
 
 - A version error means that the tag, `pyproject.toml`, and
-  `src/pymol_codex/version.py` do not agree. Do not move a published version
+  `src/codex_for_pymol/version.py` do not agree. Do not move a published version
   tag; fix the version and publish a new tag.
 - An HTTP 403 during the final job means repository or organization policy may
   be preventing write access. Check **Settings → Actions → General → Workflow

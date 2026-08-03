@@ -3,8 +3,8 @@ requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pymol-codex"
-version = "0.2.34"
+name = "codex-for-pymol"
+version = "0.3.0"
 description = "A cross-platform Codex chat plugin for PyMOL"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Huawei Wu" }]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pymol_codex"]
+packages = ["src/codex_for_pymol"]
 
 [tool.hatch.build.targets.sdist]
 include = [

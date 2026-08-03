@@ -4,6 +4,10 @@
 
 Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直接用自然语言描述想做的事情，让 Codex 检查当前结构、整理视图、突出显示残基、测量距离，以及完成其他常见 PyMOL 工作，而不必自己编写 PML 命令。
 
+这是独立的社区项目，不是 PyMOL 或 OpenAI 的官方产品。
+
+> **Vibe Coding 声明：** 本项目完全通过与 Codex 协作进行 Vibe Coding 创建，包括实现、测试、文档和自动发布流程；相关成果按照本仓库所述的验证流程进行了检查。
+
 详细指南：[English](INSTALL.md) | [简体中文](INSTALL.zh-CN.md)
 
 ## 可以做什么
@@ -27,7 +31,7 @@ Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直�
 
 ## 快速开始
 
-1. 打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载 `pymol_codex_plugin.zip`。不要下载 GitHub 自动生成的 **Source code** 压缩包，也不要解压插件 zip。
+1. 打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载 `codex-for-pymol.zip`。不要下载 GitHub 自动生成的 **Source code** 压缩包，也不要解压插件 zip。
 2. 在 PyMOL 中打开：
 
    ```text
@@ -37,6 +41,8 @@ Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直�
 3. 选择 zip，然后重启 PyMOL。
 4. 主窗口底部应该自动出现 **Codex 助手** 标签，并与 **PyMOL 控制台** 相邻。
 5. 输入请求并按 `Enter` 发送。
+
+> 从 0.2.x 或更早版本升级：安装 0.3.0 或更高版本前，请先在 PyMOL 的插件管理器中卸载旧版插件并重启 PyMOL。插件的内部包名已经改变，保留旧版可能导致 PyMOL 同时加载两份插件。
 
 如果面板没有打开，请选择：
 
@@ -65,11 +71,11 @@ Plugin → PyMOL Codex 助手
 
 ## 安全与隐私
 
-普通模式只使用少量受控 PyMOL 工具，不会向 Codex 开放通用命令行或任意文件编辑能力。插件会先检查当前所选 Codex 支持哪些安全功能；如果无法确认，插件会停止启动，不会在权限边界不明的情况下继续。
+普通模式只使用少量受控 PyMOL 工具，不会向 Codex 开放通用命令行或任意文件编辑能力。每次启动时，插件都会读取当前所选 Codex 的真实可选功能列表，并禁用与 PyMOL 无关的命令行、插件、技能和环境访问能力；未来新增的功能在明确确认必要且安全前也会默认禁用。如果无法验证功能列表，插件会停止启动，不会在权限边界不明的情况下继续。每段 PyMOL 对话还会使用不持久保存、只读且不连接 Codex 环境的新线程。插件会进一步核对 Codex 返回的结果，只有确认该对话确实不会写入历史记录才会进入就绪状态；否则会拒绝该对话，并尝试移除尚未使用的空记录。
 
 Codex 准备下载结构或读取本地结构文件时，PyMOL 会先请求你的确认。
 
-**启用不受限 Python（高风险）** 完全不同。批准后的代码会在 PyMOL 进程内以你的操作系统权限运行，可能读取或修改文件、访问网络、启动程序、导致 PyMOL 崩溃，或者进入无法中断的状态。打开开关时需要确认风险，此后每个代码块还要再次批准。切换离开、隐藏或关闭 Codex 面板时，开关会自动关闭。
+**启用不受限 Python（高风险）** 完全不同。批准后的代码会在 PyMOL 进程内以你的操作系统权限运行，可能读取或修改文件、访问网络、启动程序、导致 PyMOL 崩溃，或者进入无法中断的状态。打开开关时需要确认风险，此后每个代码块还要再次批准。切换离开、隐藏或关闭 Codex 面板，以及更换 Codex 后台进程或后台进程意外停止时，开关都会自动关闭。
 
 一条用户请求第一次准备修改 PyMOL 前，插件会保存一个 `.pse` 撤销点。**撤销最新一轮的修改** 可以恢复 PyMOL 会话，但不能撤销普通文件、下载、网络活动、已安装软件包或外部程序造成的影响。
 
@@ -92,7 +98,7 @@ Codex 准备下载结构或读取本地结构文件时，PyMOL 会先请求你�
 
 ## 开发
 
-本节命令供开发者使用。普通 PyMOL 用户应安装 GitHub Release 中的 `pymol_codex_plugin.zip`，不要安装 wheel、Python 源码包或 GitHub 自动生成的源码压缩包。
+本节命令供开发者使用。普通 PyMOL 用户应安装 GitHub Release 中的 `codex-for-pymol.zip`，不要安装 wheel、Python 源码包或 GitHub 自动生成的源码压缩包。
 
 运行单元测试：
 

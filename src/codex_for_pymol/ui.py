@@ -433,9 +433,12 @@ class CodexDialog(QtWidgets.QDialog):
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, False)
         self.setAutoFillBackground(True)
 
-        self.settings = QtCore.QSettings("OpenAI", "CodexForPyMOL")
+        self.settings = QtCore.QSettings(
+            "CodexForPyMOL",
+            "CodexForPyMOL",
+        )
         self._runtime_temporary_directory = tempfile.TemporaryDirectory(
-            prefix="pymol-codex-runtime-"
+            prefix="codex-for-pymol-runtime-"
         )
         self.runtime_directory = Path(
             self._runtime_temporary_directory.name
@@ -448,7 +451,7 @@ class CodexDialog(QtWidgets.QDialog):
         app_data = QtCore.QStandardPaths.writableLocation(
             QtCore.QStandardPaths.AppLocalDataLocation
         ) or tempfile.gettempdir()
-        self.audit = AuditLogger(Path(app_data) / "pymol-codex" / "logs")
+        self.audit = AuditLogger(Path(app_data) / "codex-for-pymol" / "logs")
         self.executor = PyMOLExecutor(
             cmd,
             pymol_module=pymol,
@@ -486,7 +489,7 @@ class CodexDialog(QtWidgets.QDialog):
         layout.setSpacing(0)
 
         self.transcript = QtWidgets.QPlainTextEdit()
-        self.transcript.setObjectName("pymol_codex_transcript")
+        self.transcript.setObjectName("codex_for_pymol_transcript")
         self.transcript.setReadOnly(True)
         self.transcript.setPlaceholderText("对话内容将在这里显示。")
         self.transcript.setFrameShape(QtWidgets.QFrame.NoFrame)
@@ -495,7 +498,7 @@ class CodexDialog(QtWidgets.QDialog):
         layout.addWidget(self.transcript, 1)
 
         self.footer_widget = QtWidgets.QWidget()
-        self.footer_widget.setObjectName("pymol_codex_footer")
+        self.footer_widget.setObjectName("codex_for_pymol_footer")
         self.footer_widget.setAutoFillBackground(True)
         self.footer_widget.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding,
@@ -506,7 +509,7 @@ class CodexDialog(QtWidgets.QDialog):
         footer_layout.setSpacing(4)
 
         self.status_separator = QtWidgets.QFrame()
-        self.status_separator.setObjectName("pymol_codex_status_separator")
+        self.status_separator.setObjectName("codex_for_pymol_status_separator")
         self.status_separator.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.status_separator.setFixedHeight(1)
         footer_layout.addWidget(self.status_separator)
@@ -526,7 +529,7 @@ class CodexDialog(QtWidgets.QDialog):
         footer_layout.addLayout(self.status_row)
 
         self.input = MessageInput()
-        self.input.setObjectName("pymol_codex_input")
+        self.input.setObjectName("codex_for_pymol_input")
         self.input.setVerticalScrollBarPolicy(
             QtCore.Qt.ScrollBarAsNeeded
         )
@@ -604,7 +607,7 @@ class CodexDialog(QtWidgets.QDialog):
             QtGui.QPalette.WindowText,
         )
         self.status_separator.setStyleSheet(
-            "QFrame#pymol_codex_status_separator {{"
+            "QFrame#codex_for_pymol_status_separator {{"
             "border: 0;"
             "background-color: rgba({red}, {green}, {blue}, 72);"
             "}}".format(
@@ -670,6 +673,9 @@ class CodexDialog(QtWidgets.QDialog):
         return find_codex(configured)
 
     def _connect_codex(self):
+        # A new executable/process is a new trust boundary. Never carry the
+        # high-risk in-process Python grant across that boundary.
+        self.lock_unrestricted_python()
         executable = self._configured_codex()
         if not executable:
             self._set_codex_selector_visible(True)
@@ -703,7 +709,6 @@ class CodexDialog(QtWidgets.QDialog):
         self._model_catalog = []
         self._model_catalog_validated = False
         self._model_catalog_error = "正在从 Codex 获取可用模型…"
-        self.settings.remove("thread_id")
         self.client.start()
 
     def _choose_codex(self):
@@ -1295,15 +1300,20 @@ class CodexDialog(QtWidgets.QDialog):
     def _request_user_input(self, request_id, params):
         answers = {}
         cancelled = False
-        for question in params.get("questions") or []:
+        questions = params.get("questions") or []
+        if not isinstance(questions, list):
+            questions = []
+        for question in questions[:3]:
+            if not isinstance(question, dict):
+                continue
             question_id = question.get("id")
-            if not question_id:
+            if not isinstance(question_id, str) or not question_id:
                 continue
             prompt = str(question.get("question") or question.get("prompt") or "")
             options = question.get("options") or []
-            if options:
+            if isinstance(options, list) and options:
                 lines = []
-                for option in options:
+                for option in options[:20]:
                     if isinstance(option, dict):
                         label = str(option.get("label", ""))
                         description = str(option.get("description", ""))
@@ -1316,12 +1326,19 @@ class CodexDialog(QtWidgets.QDialog):
                     else:
                         lines.append("- " + str(option))
                 prompt += "\n\n选项：\n" + "\n".join(lines)
+            if question.get("isSecret"):
+                prompt += (
+                    "\n\n此输入将被遮蔽，但仍会发送给 Codex。"
+                    "不要输入 API Key、密码或其他不应发送给模型的秘密。"
+                )
             dialog = QtWidgets.QInputDialog(self)
             dialog.setWindowTitle(
                 str(question.get("header") or "Codex 需要补充信息")[:100]
             )
             dialog.setLabelText(prompt[:4000])
             dialog.setInputMode(QtWidgets.QInputDialog.TextInput)
+            if question.get("isSecret"):
+                dialog.setTextEchoMode(QtWidgets.QLineEdit.Password)
             dialog.setOkButtonText("确定")
             dialog.setCancelButtonText("取消")
             accepted = dialog.exec_() == QtWidgets.QDialog.Accepted
@@ -1331,6 +1348,13 @@ class CodexDialog(QtWidgets.QDialog):
                 answers[question_id] = {"answers": []}
                 break
             answers[question_id] = {"answers": [str(value)]}
+
+        for question in questions[3:]:
+            if not isinstance(question, dict):
+                continue
+            question_id = question.get("id")
+            if isinstance(question_id, str) and question_id:
+                answers[question_id] = {"answers": []}
 
         self._audit(
             "user_input_response",
@@ -1436,6 +1460,7 @@ class CodexDialog(QtWidgets.QDialog):
 
     def _client_stopped(self):
         self._assistant_streaming = False
+        self.lock_unrestricted_python()
         self._set_ready(False)
         self._set_codex_selector_visible(True, retry=True)
         self._append_pending_diagnostic()

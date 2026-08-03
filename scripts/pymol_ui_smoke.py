@@ -8,9 +8,9 @@ import sys
 
 from pymol.Qt import QtCore, QtGui, QtWidgets
 
-from pymol_codex import app_server as app_server_module
-from pymol_codex import ui
-from pymol_codex.docking import create_codex_dock
+from codex_for_pymol import app_server as app_server_module
+from codex_for_pymol import ui
+from codex_for_pymol.docking import create_codex_dock
 
 
 class NullAuditLogger:
@@ -214,7 +214,7 @@ def main():
     app.processEvents(QtCore.QEventLoop.AllEvents)
     require(
         dialog.runtime_directory.name.startswith(
-            "pymol-codex-runtime-"
+            "codex-for-pymol-runtime-"
         ),
         "runtime directory is not uniquely allocated",
     )
@@ -300,7 +300,75 @@ def main():
         "into App Server argument generation",
     )
 
+    startup_failure_client = ui.AppServerClient(
+        "fake-codex",
+        dialog.runtime_directory,
+        dialog,
+    )
+    startup_errors = []
+    startup_stops = []
+    startup_failure_client.error.connect(startup_errors.append)
+    startup_failure_client.stopped.connect(
+        lambda: startup_stops.append(True)
+    )
+    startup_failure_client.process.setWorkingDirectory(
+        str(dialog.runtime_directory)
+    )
+    startup_failure_client.process.start(
+        sys.executable,
+        ["-c", "import time; time.sleep(5)"],
+    )
+    require(
+        startup_failure_client.process.waitForStarted(2000),
+        "startup-failure test process did not start",
+    )
+    # The real initialize response has already consumed its callback before
+    # _initialized runs. Mirror that state without needing a fake JSON-RPC
+    # server for this lifecycle check.
+    startup_failure_client.requests.clear()
+    startup_failure_client._initialized(
+        None,
+        {"message": "initialize rejected"},
+    )
+    startup_stop_wait = QtCore.QEventLoop()
+    startup_failure_client.stopped.connect(startup_stop_wait.quit)
+    QtCore.QTimer.singleShot(2500, startup_stop_wait.quit)
+    startup_stop_wait.exec_()
+    require(
+        startup_errors == ["Codex 初始化失败：initialize rejected"]
+        and startup_stops == [True]
+        and startup_failure_client.process.state()
+        == QtCore.QProcess.NotRunning,
+        "an initialization failure left an App Server process running: "
+        "errors={!r}, stops={!r}, state={!r}".format(
+            startup_errors,
+            startup_stops,
+            startup_failure_client.process.state(),
+        ),
+    )
+    startup_failure_client.close()
+
     protocol_client.thread_id = "stale-thread"
+    split_diagnostics = []
+    protocol_client.diagnostic.connect(split_diagnostics.append)
+    protocol_client._consume_stderr(
+        "2026-07-29T09:19:43Z ERROR codex_models_manager::manager: "
+        "failed to refresh available "
+    )
+    require(
+        not split_diagnostics,
+        "an incomplete stderr line was exposed as a diagnostic",
+    )
+    protocol_client._consume_stderr(
+        "models: timeout waiting for child process to exit\n"
+    )
+    require(
+        split_diagnostics
+        and split_diagnostics[-1].endswith(
+            "timeout waiting for child process to exit"
+        ),
+        "a split stderr diagnostic was not reconstructed",
+    )
     protocol_client._process_finished(1, QtCore.QProcess.NormalExit)
     require(
         protocol_client.thread_id is None,
@@ -363,6 +431,77 @@ def main():
         and not any(entry[0] == "thread/resume" for entry in turn_requests),
         "a new PyMOL launch still resumes a previous Codex conversation",
     )
+    thread_start = next(
+        entry[1] for entry in turn_requests if entry[0] == "thread/start"
+    )
+    require(
+        thread_start["approvalPolicy"] == "never"
+        and thread_start["sandbox"] == "read-only"
+        and thread_start["environments"] == []
+        and thread_start["ephemeral"] is True,
+        "thread/start does not enforce the ephemeral least-privilege policy",
+    )
+
+    validation_client = ui.AppServerClient(
+        "codex",
+        dialog.runtime_directory,
+        dialog,
+    )
+    validated_threads = []
+    validation_errors = []
+    validation_stops = []
+    cleanup_requests = []
+    validation_client.ready.connect(validated_threads.append)
+    validation_client.error.connect(validation_errors.append)
+    validation_client._stop_unusable_process = (
+        lambda: validation_stops.append(True)
+    )
+
+    def capture_cleanup(method, params=None, callback=None):
+        cleanup_requests.append((method, params, callback))
+        return 9001
+
+    validation_client.send_request = capture_cleanup
+    validation_client._accept_thread(
+        {"thread": {"id": "ephemeral-thread", "ephemeral": True}}
+    )
+    require(
+        validated_threads == ["ephemeral-thread"]
+        and validation_client.thread_id == "ephemeral-thread"
+        and not validation_errors
+        and not cleanup_requests,
+        "an explicitly ephemeral thread response was not accepted",
+    )
+    validation_client._accept_thread(
+        {"thread": {"id": "persistent-thread", "ephemeral": False}}
+    )
+    require(
+        validation_client.thread_id is None
+        and validated_threads == ["ephemeral-thread"]
+        and validation_errors
+        and "不会保存到历史记录" in validation_errors[-1]
+        and cleanup_requests[-1][0] == "thread/delete"
+        and cleanup_requests[-1][1]
+        == {"threadId": "persistent-thread"}
+        and not validation_stops,
+        "a persistent thread response was accepted or not cleaned up",
+    )
+    cleanup_requests[-1][2](None, {"message": "cleanup unsupported"})
+    require(
+        validation_stops == [True],
+        "a rejected thread cleanup failure did not stop the session",
+    )
+    validation_stops.clear()
+    cleanup_count = len(cleanup_requests)
+    validation_client._accept_thread({"thread": {"ephemeral": True}})
+    require(
+        validation_stops == [True]
+        and len(cleanup_requests) == cleanup_count
+        and validated_threads == ["ephemeral-thread"],
+        "a malformed thread response remained usable",
+    )
+    validation_client.close()
+
     turn_requests.clear()
     protocol_client.thread_id = "context-thread"
     catalog_seen = []
@@ -385,10 +524,10 @@ def main():
         entry for entry in turn_requests if entry[0] == "turn/start"
     ]
     disabled_context = turn_entries[0][1]["additionalContext"][
-        "pymol_codex_python_mode"
+        "codex_for_pymol_python_mode"
     ]
     enabled_context = turn_entries[1][1]["additionalContext"][
-        "pymol_codex_python_mode"
+        "codex_for_pymol_python_mode"
     ]
     require(
         turn_entries[0][0] == "turn/start"
@@ -408,6 +547,53 @@ def main():
         and turn_entries[1][1]["effort"] == "high"
         and turn_entries[1][1]["serviceTier"] == "priority",
         "turn/start does not carry model, effort, and service-tier settings",
+    )
+    require(
+        not any(entry[0] == "thread/start" for entry in turn_requests),
+        "messages in one PyMOL conversation created separate Codex threads",
+    )
+
+    turn_requests.clear()
+    protocol_client.thread_id = "old-thread"
+    protocol_client.turn_id = "old-turn"
+    protocol_client._turn_active = True
+    protocol_client.new_thread()
+    first_new_thread = turn_requests[-1]
+    protocol_client.new_thread()
+    second_new_thread = turn_requests[-1]
+    first_new_thread[2](
+        {"thread": {"id": "stale-new-thread", "ephemeral": True}},
+        None,
+    )
+    require(
+        protocol_client.thread_id is None,
+        "a stale thread/start response replaced the newer conversation",
+    )
+    second_new_thread[2](
+        {"thread": {"id": "fresh-new-thread", "ephemeral": True}},
+        None,
+    )
+    require(
+        protocol_client.thread_id == "fresh-new-thread"
+        and protocol_client.turn_id is None
+        and not protocol_client._turn_active
+        and sum(entry[0] == "thread/start" for entry in turn_requests) == 2,
+        "new-conversation generation isolation is incorrect",
+    )
+
+    ambiguous_turn_aborts = []
+    protocol_client._stop_unusable_process = (
+        lambda: ambiguous_turn_aborts.append(True)
+    )
+    protocol_client._turn_active = True
+    protocol_client._turn_accepted(
+        None,
+        {"code": -32001, "message": "waiting for turn/start timed out"},
+    )
+    require(
+        ambiguous_turn_aborts == [True]
+        and not protocol_client._turn_active,
+        "an ambiguous turn/start timeout left the App Server session reusable",
     )
 
     first_model = {
@@ -778,6 +964,44 @@ def main():
     client.thread_id = "thread-1"
     dialog._set_ready(True)
     dialog._set_turn_active()
+
+    secret_echo_modes = []
+
+    def answer_secret_question():
+        for widget in QtWidgets.QApplication.topLevelWidgets():
+            if isinstance(widget, QtWidgets.QInputDialog):
+                secret_echo_modes.append(widget.textEchoMode())
+                widget.setTextValue("example-secret")
+                widget.accept()
+                return
+
+    QtCore.QTimer.singleShot(0, answer_secret_question)
+    dialog._request_user_input(
+        61,
+        {
+            "questions": [
+                {
+                    "id": "secret_value",
+                    "header": "敏感输入",
+                    "question": "请输入测试值",
+                    "isSecret": True,
+                }
+            ]
+        },
+    )
+    require(
+        secret_echo_modes == [QtWidgets.QLineEdit.Password]
+        and client.responses[-1]
+        == (
+            61,
+            {
+                "answers": {
+                    "secret_value": {"answers": ["example-secret"]}
+                }
+            },
+        ),
+        "secret user input was not masked or returned correctly",
+    )
 
     executor = RecordingExecutor(dialog.runtime_directory)
     dialog.executor = executor
@@ -1430,6 +1654,17 @@ def main():
     codex_dock.show()
     codex_dock.raise_()
     require(not codex_dock.isHidden(), "Codex dock cannot be reopened")
+
+    dialog.full_python_enabled = True
+    dialog.python_checkbox.blockSignals(True)
+    dialog.python_checkbox.setChecked(True)
+    dialog.python_checkbox.blockSignals(False)
+    dialog._client_stopped()
+    require(
+        not dialog.full_python_enabled
+        and not dialog.python_checkbox.isChecked(),
+        "a stopped Codex process retained unrestricted Python permission",
+    )
 
     approval.close()
     model_dialog.close()

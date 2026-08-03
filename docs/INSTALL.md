@@ -41,13 +41,13 @@ locations. A `codex.cmd` launcher is supported.
 If needed, set the executable explicitly before starting PyMOL:
 
 ```text
-PYMOL_CODEX_EXECUTABLE=/absolute/path/to/codex
+CODEX_FOR_PYMOL_EXECUTABLE=/absolute/path/to/codex
 ```
 
 Windows example:
 
 ```powershell
-$env:PYMOL_CODEX_EXECUTABLE = "C:\Tools\codex.exe"
+$env:CODEX_FOR_PYMOL_EXECUTABLE = "C:\Tools\codex.exe"
 ```
 
 You can also choose the executable later with **选择 Codex…**.
@@ -56,7 +56,7 @@ You can also choose the executable later with **选择 Codex…**.
 
 ### Install a release
 
-Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest). Under **Assets**, download the file named exactly `pymol_codex_plugin.zip`. Do not choose GitHub's automatically generated **Source code (zip)** or **Source code (tar.gz)** archives; they are repository snapshots, not installable PyMOL plugins. Do not extract the plugin zip.
+Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest). Under **Assets**, download the file named exactly `codex-for-pymol.zip`. Do not choose GitHub's automatically generated **Source code (zip)** or **Source code (tar.gz)** archives; they are repository snapshots, not installable PyMOL plugins. Do not extract the plugin zip.
 
 In PyMOL, select:
 
@@ -65,6 +65,10 @@ Plugin → Plugin Manager → Install New Plugin → Choose file…
 ```
 
 Choose the downloaded zip and restart PyMOL.
+
+If you are upgrading from 0.2.x or earlier, first uninstall the old plugin in
+PyMOL's Plugin Manager and restart PyMOL. Version 0.3.0 changed the internal
+package name; installing it alongside the old copy may load both plugins.
 
 ### Build from source
 
@@ -83,7 +87,7 @@ py scripts/build_plugin.py
 ```
 
 If `py` is unavailable but `python` is on `PATH`, use `python` instead. Install
-the `dist/pymol_codex_plugin.zip` produced by the script in the same way as a
+the `dist/codex-for-pymol.zip` produced by the script in the same way as a
 release zip.
 
 ## 3. Start your first conversation
@@ -186,7 +190,8 @@ rejects it and asks Codex to stop. Enable the switch and resend only if you
 understand the risk and the controlled tools are insufficient.
 
 The switch turns off automatically when you switch to **PyMOL 控制台**, hide
-or close the Codex panel, or exit PyMOL.
+or close the Codex panel, replace or lose the Codex background process, or
+exit PyMOL.
 
 Before a user request first changes PyMOL, the plugin saves one `.pse` undo
 point. All controlled changes and approved Python in that request share the
@@ -203,6 +208,13 @@ survive a PyMOL restart.
 Structure summaries and screenshots sent to Codex become part of the model
 conversation. Check your organization's policy before using unpublished or
 regulated structures.
+
+Each PyMOL launch starts a new ephemeral Codex conversation rather than
+resuming an earlier one. The plugin verifies the `thread/start` response before
+it becomes ready. If the selected Codex does not explicitly confirm that the
+new conversation is ephemeral, the plugin rejects it, attempts to delete the
+unused record, and stops. If deletion also fails, the panel identifies the
+record that may need to be removed manually in Codex.
 
 The plugin stores the following data locally under Qt's per-user application
 data, cache, or temporary directories:
@@ -237,8 +249,11 @@ Run `codex` in Terminal or PowerShell, complete sign-in, and restart PyMOL.
 ### The plugin cannot check Codex features
 
 Before opening a conversation, the plugin runs a short safety check against
-the selected Codex. If it cannot verify the available features, it does not
-start the background service. Run:
+the selected Codex. It disables every reported optional feature except a small
+reviewed set needed for proxy handling, transport, context maintenance, and
+the model's advertised standard/fast service tiers. Newly reported features
+therefore start disabled. If the plugin cannot verify the feature list, it
+does not start the background service. Run:
 
 ```bash
 codex features list

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pymol_codex.audit import AuditLogger
+from codex_for_pymol.audit import AuditLogger
 
 
 class AuditLoggerTests(unittest.TestCase):

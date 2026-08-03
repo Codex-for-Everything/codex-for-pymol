@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from pymol_codex.protocol import (
+from codex_for_pymol.protocol import (
     JsonLineBuffer,
     RequestTracker,
     Utf8ChunkDecoder,
@@ -12,12 +12,42 @@ from pymol_codex.protocol import (
     error_will_retry,
     format_diagnostic,
     is_active_tool_call,
+    is_current_notification,
     is_reconnect_notice,
+    notification_turn_id,
+    validated_ephemeral_thread_id,
     strip_ansi,
 )
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_ephemeral_thread_response_must_be_explicitly_confirmed(self):
+        self.assertEqual(
+            validated_ephemeral_thread_id(
+                {"thread": {"id": "thread-1", "ephemeral": True}}
+            ),
+            "thread-1",
+        )
+
+    def test_persistent_or_ambiguous_thread_response_is_rejected(self):
+        invalid_results = [
+            None,
+            [],
+            {},
+            {"thread": None},
+            {"thread": []},
+            {"thread": {}},
+            {"thread": {"id": None, "ephemeral": True}},
+            {"thread": {"id": 42, "ephemeral": True}},
+            {"thread": {"id": "", "ephemeral": True}},
+            {"thread": {"id": "thread-1"}},
+            {"thread": {"id": "thread-1", "ephemeral": False}},
+            {"thread": {"id": "thread-1", "ephemeral": 1}},
+        ]
+        for result in invalid_results:
+            with self.subTest(result=result), self.assertRaises(ValueError):
+                validated_ephemeral_thread_id(result)
+
     def test_partial_lines(self):
         buffer = JsonLineBuffer()
         self.assertEqual(buffer.feed('{"id":1'), [])
@@ -202,6 +232,36 @@ class ProtocolTests(unittest.TestCase):
             self.assertFalse(is_active_tool_call(invalid, "thread-1", "turn-1"))
         self.assertFalse(is_active_tool_call(valid, "thread-2", "turn-1"))
         self.assertFalse(is_active_tool_call(valid, "thread-1", "turn-2"))
+
+    def test_late_turn_notifications_are_rejected(self):
+        current = {"threadId": "thread-1", "turnId": "turn-2"}
+        old = {"threadId": "thread-1", "turnId": "turn-1"}
+
+        self.assertTrue(
+            is_current_notification(current, "thread-1", "turn-2", True)
+        )
+        self.assertFalse(
+            is_current_notification(old, "thread-1", "turn-2", True)
+        )
+        self.assertFalse(
+            is_current_notification(
+                old,
+                "thread-1",
+                None,
+                True,
+                {"turn-1"},
+            )
+        )
+        self.assertFalse(
+            is_current_notification(current, "thread-1", None, False)
+        )
+        self.assertTrue(
+            is_current_notification(current, "thread-1", None, True)
+        )
+        self.assertEqual(
+            notification_turn_id({"turn": {"id": "nested-turn"}}),
+            "nested-turn",
+        )
 
 
 if __name__ == "__main__":

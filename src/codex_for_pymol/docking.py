@@ -5,7 +5,7 @@ from pymol.Qt import QtCore, QtGui, QtWidgets
 from .ui import CodexDialog
 
 
-DOCK_OBJECT_NAME = "pymol_codex_dock"
+DOCK_OBJECT_NAME = "codex_for_pymol_dock"
 
 
 def find_console_theme_source(main_window, console_dock=None):
@@ -162,7 +162,7 @@ def create_codex_dock(main_window, dialog_class=CodexDialog):
     dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
     dock.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
     hidden_title_bar = QtWidgets.QWidget(dock)
-    hidden_title_bar.setObjectName("pymol_codex_hidden_title_bar")
+    hidden_title_bar.setObjectName("codex_for_pymol_hidden_title_bar")
     hidden_title_bar.setFixedHeight(0)
     dock.setTitleBarWidget(hidden_title_bar)
 

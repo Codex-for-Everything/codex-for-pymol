@@ -1,6 +1,6 @@
 import unittest
 
-from pymol_codex.tool_specs import (
+from codex_for_pymol.tool_specs import (
     DEVELOPER_INSTRUCTIONS,
     dynamic_tools,
     python_mode_context,
@@ -10,7 +10,7 @@ from pymol_codex.tool_specs import (
 class ToolSpecsTests(unittest.TestCase):
     def test_disabled_python_context_requires_controlled_tools_first(self):
         context = python_mode_context(False)
-        entry = context["pymol_codex_python_mode"]
+        entry = context["codex_for_pymol_python_mode"]
 
         self.assertEqual(entry["kind"], "application")
         self.assertIn("DISABLED", entry["value"])
@@ -18,7 +18,7 @@ class ToolSpecsTests(unittest.TestCase):
         self.assertIn("Do not call pymol_python_exec", entry["value"])
 
     def test_enabled_python_context_still_prefers_controlled_tools(self):
-        value = python_mode_context(True)["pymol_codex_python_mode"]["value"]
+        value = python_mode_context(True)["codex_for_pymol_python_mode"]["value"]
 
         self.assertIn("ENABLED", value)
         self.assertIn("Still prefer pymol_inspect", value)

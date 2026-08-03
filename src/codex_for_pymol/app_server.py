@@ -19,6 +19,9 @@ from .protocol import (
     error_will_retry,
     format_diagnostic,
     is_reconnect_notice,
+    is_current_notification,
+    notification_turn_id,
+    validated_ephemeral_thread_id,
 )
 from .tool_specs import (
     DEVELOPER_INSTRUCTIONS,
@@ -83,6 +86,7 @@ class AppServerClient(QtCore.QObject):
         self.buffer = JsonLineBuffer()
         self._stdout_decoder = Utf8ChunkDecoder()
         self._stderr_decoder = Utf8ChunkDecoder()
+        self._stderr_text_buffer = ""
         self.requests = RequestTracker()
         self.thread_id = None
         self.turn_id = None
@@ -93,6 +97,8 @@ class AppServerClient(QtCore.QObject):
         self._feature_probe_active = False
         self._feature_probe_generation = 0
         self._turn_active = False
+        self._finished_turn_ids = []
+        self._process_abort_pending = False
 
     def start(self):
         if (
@@ -102,6 +108,7 @@ class AppServerClient(QtCore.QObject):
         ):
             return
         self._closing = False
+        self._process_abort_pending = False
         self._feature_probe_active = True
         self._feature_probe_generation += 1
         generation = self._feature_probe_generation
@@ -151,8 +158,14 @@ class AppServerClient(QtCore.QObject):
         raw = bytes(
             self.feature_process.readAllStandardOutput()
         ).decode("utf-8", "replace")
-        self._feature_probe_active = False
-        self._start_app_server(parse_feature_list(raw))
+        available_features = parse_feature_list(raw)
+        if not available_features:
+            self._feature_probe_failed(
+                "Codex 返回的功能列表中没有可识别的项目。请确认该命令"
+                "输出完整，或升级后重新选择 Codex。"
+            )
+            return
+        self._start_app_server(available_features)
 
     def _feature_probe_failed(self, detail):
         if not self._feature_probe_active:
@@ -172,10 +185,17 @@ class AppServerClient(QtCore.QObject):
     def _start_app_server(self, available_features):
         if self._closing:
             return
-        program, arguments = process_invocation(
-            self.executable,
-            available_features,
-        )
+        try:
+            program, arguments = process_invocation(
+                self.executable,
+                available_features,
+            )
+        except Exception as exc:
+            self._feature_probe_failed(
+                "无法为当前 Codex 生成安全启动参数：{}".format(exc)
+            )
+            return
+        self._feature_probe_active = False
         self.process.setWorkingDirectory(self.runtime_directory)
         self.status.emit("正在启动 Codex 后台服务…")
         self.process.start(program, arguments)
@@ -183,7 +203,7 @@ class AppServerClient(QtCore.QObject):
     def _initialize(self):
         params = {
             "clientInfo": {
-                "name": "pymol_codex",
+                "name": "codex_for_pymol",
                 "title": "PyMOL Codex 助手",
                 "version": __version__,
             },
@@ -196,6 +216,7 @@ class AppServerClient(QtCore.QObject):
             self.error.emit(
                 "Codex 初始化失败：{}".format(error_message(error))
             )
+            self._stop_unusable_process()
             return
         self.send_notification("initialized", {})
         try:
@@ -214,16 +235,19 @@ class AppServerClient(QtCore.QObject):
         self.turn_id = None
         self._turn_active = False
         self._interrupt_pending = False
+        self._finished_turn_ids = []
         self.status.emit("正在新建 Codex 对话…")
         self.send_request(
             "thread/start",
             {
                 "cwd": self.runtime_directory,
                 "sandbox": "read-only",
-                "approvalPolicy": "on-request",
+                "approvalPolicy": "never",
                 "developerInstructions": DEVELOPER_INSTRUCTIONS,
                 "dynamicTools": dynamic_tools(),
-                "serviceName": "pymol_codex",
+                "environments": [],
+                "ephemeral": True,
+                "serviceName": "codex_for_pymol",
             },
             lambda result, error: self._thread_started(
                 result, error, generation
@@ -237,17 +261,85 @@ class AppServerClient(QtCore.QObject):
             self.error.emit(
                 "无法创建 Codex 对话：{}".format(error_message(error))
             )
+            self._stop_unusable_process()
             return
-        self._accept_thread(result)
+        self._accept_thread(result, generation)
 
-    def _accept_thread(self, result):
-        thread = (result or {}).get("thread") or {}
-        self.thread_id = thread.get("id")
-        if not self.thread_id:
-            self.error.emit("Codex 没有返回对话 ID")
+    def _accept_thread(self, result, generation=None):
+        if generation is None:
+            generation = self._thread_generation
+        if generation != self._thread_generation:
+            return
+        try:
+            self.thread_id = validated_ephemeral_thread_id(result)
+        except ValueError as exc:
+            self.thread_id = None
+            thread = result.get("thread") if isinstance(result, dict) else None
+            rejected_id = thread.get("id") if isinstance(thread, dict) else None
+            self.error.emit(
+                "无法安全创建 Codex 对话：{}。插件已拒绝使用该对话；"
+                "如果 Codex 返回了可识别的空对话，插件还会尝试移除它。"
+                "请升级 Codex 后重试。".format(exc)
+            )
+            if isinstance(rejected_id, str) and rejected_id.strip():
+                def cleanup_finished(cleanup_result, cleanup_error):
+                    self._rejected_thread_deleted(
+                        cleanup_result,
+                        cleanup_error,
+                        generation,
+                        rejected_id,
+                    )
+
+                try:
+                    request_id = self.send_request(
+                        "thread/delete",
+                        {"threadId": rejected_id},
+                        cleanup_finished,
+                    )
+                except Exception as cleanup_error:
+                    self.error.emit(
+                        "无法移除 Codex 意外保存的空对话 {}：{}。请在 "
+                        "Codex 中手动删除该记录。".format(
+                            rejected_id,
+                            cleanup_error,
+                        )
+                    )
+                    self._stop_unusable_process()
+                else:
+                    QtCore.QTimer.singleShot(
+                        1000,
+                        lambda: self.requests.reject(
+                            request_id,
+                            {
+                                "code": -32001,
+                                "message": "等待 thread/delete 响应超时",
+                            },
+                        ),
+                    )
+            else:
+                self._stop_unusable_process()
             return
         self.status.emit("就绪")
         self.ready.emit(self.thread_id)
+
+    def _rejected_thread_deleted(
+        self,
+        _result,
+        error,
+        generation,
+        rejected_id,
+    ):
+        """Finish cleanup without letting an old callback stop a new thread."""
+        if error:
+            self.error.emit(
+                "无法移除 Codex 意外保存的空对话 {}：{}。请在 Codex 中"
+                "手动删除该记录。".format(
+                    rejected_id,
+                    error_message(error),
+                )
+            )
+        if generation == self._thread_generation:
+            self._stop_unusable_process()
 
     def start_turn(
         self,
@@ -348,14 +440,25 @@ class AppServerClient(QtCore.QObject):
         self.model_catalog.emit(models[:1000])
 
     def _turn_accepted(self, result, error):
+        if not self._turn_active:
+            return
         if error:
             message = "无法发送消息：{}".format(error_message(error))
+            response_timed_out = (
+                isinstance(error, dict)
+                and error.get("code") == -32001
+            )
             self.turn_id = None
             self._turn_active = False
             self._interrupt_pending = False
             self.status.emit("就绪")
             self.error.emit(message)
             self.turn_failed.emit(message)
+            if response_timed_out:
+                # The server may have accepted the turn even though its reply
+                # was lost. Stop the ambiguous session so a later message
+                # cannot overlap with an invisible, still-running turn.
+                self._stop_unusable_process()
             return
         turn = (result or {}).get("turn") or {}
         self.turn_id = turn.get("id") or self.turn_id
@@ -433,12 +536,32 @@ class AppServerClient(QtCore.QObject):
 
     def _read_stderr(self):
         raw = self._stderr_decoder.decode(self.process.readAllStandardError())
-        raw = format_diagnostic(raw)
+        self._consume_stderr(raw)
+
+    def _consume_stderr(self, raw, final=False):
+        """Emit only complete diagnostic lines from arbitrary process chunks."""
+        self._stderr_text_buffer += str(raw or "")
+        lines = self._stderr_text_buffer.split("\n")
+        self._stderr_text_buffer = lines.pop()
+        if final and self._stderr_text_buffer:
+            lines.append(self._stderr_text_buffer)
+            self._stderr_text_buffer = ""
+        elif len(self._stderr_text_buffer) > 65536:
+            # A malformed process that never terminates a line must not grow
+            # the PyMOL process indefinitely. Preserve its most useful tail.
+            lines.append(self._stderr_text_buffer[-65536:])
+            self._stderr_text_buffer = ""
+
         # App Server may emit non-fatal loader warnings on stderr. Keep those
         # away from the primary status line; fatal process errors have their own
         # QProcess signals.
-        if raw and ("ERROR" in raw.upper() or raw.lower().startswith("error:")):
-            self.diagnostic.emit(raw[-1000:])
+        for line in lines:
+            formatted = format_diagnostic(line)
+            if formatted and (
+                "ERROR" in formatted.upper()
+                or formatted.lower().startswith("error:")
+            ):
+                self.diagnostic.emit(formatted[-1000:])
 
     def _handle(self, message):
         if "method" not in message and "id" in message:
@@ -447,6 +570,15 @@ class AppServerClient(QtCore.QObject):
 
         method = message.get("method", "")
         params = message.get("params") or {}
+        if not isinstance(params, dict):
+            if "id" in message:
+                self.respond(
+                    message["id"],
+                    error={"code": -32602, "message": "Invalid request params"},
+                )
+            else:
+                self.error.emit("收到参数格式无效的 Codex 协议消息")
+            return
         if method == "item/tool/call" and "id" in message:
             self.tool_call.emit(message["id"], params)
             return
@@ -479,13 +611,21 @@ class AppServerClient(QtCore.QObject):
             )
             self.status.emit("不支持的 Codex 客户端请求：" + method)
             return
-        notification_thread_id = params.get("threadId")
-        if notification_thread_id and notification_thread_id != self.thread_id:
+        if not is_current_notification(
+            params,
+            self.thread_id,
+            self.turn_id,
+            self._turn_active,
+            self._finished_turn_ids,
+        ):
             return
         if method == "turn/started":
             self.turn_id = (params.get("turn") or {}).get("id") or self.turn_id
             self._flush_pending_interrupt()
         elif method == "turn/completed":
+            self._remember_finished_turn(
+                notification_turn_id(params) or self.turn_id
+            )
             self.turn_id = None
             self._turn_active = False
             self._interrupt_pending = False
@@ -493,7 +633,7 @@ class AppServerClient(QtCore.QObject):
         elif method == "error":
             error = params.get("error") or params
             if error_will_retry(params):
-                message = str(error.get("message") or "")
+                message = error_message(error)
                 if is_reconnect_notice(error):
                     progress = message.rsplit(" ", 1)[-1] if "/" in message else ""
                     suffix = "（{}）".format(progress) if progress else ""
@@ -505,6 +645,9 @@ class AppServerClient(QtCore.QObject):
                     error_message(error)
                 )
                 had_active_turn = self._turn_active
+                self._remember_finished_turn(
+                    notification_turn_id(params) or self.turn_id
+                )
                 self.turn_id = None
                 self._turn_active = False
                 self._interrupt_pending = False
@@ -513,16 +656,50 @@ class AppServerClient(QtCore.QObject):
                     self.turn_failed.emit(failure)
         self.message.emit(message)
 
+    def _remember_finished_turn(self, turn_id):
+        if not turn_id or turn_id in self._finished_turn_ids:
+            return
+        self._finished_turn_ids.append(turn_id)
+        del self._finished_turn_ids[:-32]
+
     def _process_error(self, _error):
-        if self._closing:
+        if self._closing or self._process_abort_pending:
             return
         self.error.emit("Codex 进程错误：{}".format(self.process.errorString()))
 
+    def _stop_unusable_process(self):
+        """Stop an unusable App Server without blocking the Qt event loop."""
+        if self.process.state() == QtCore.QProcess.NotRunning:
+            return
+        self._process_abort_pending = True
+        self.process.terminate()
+        QtCore.QTimer.singleShot(1000, self._kill_unresponsive_process)
+
+    def _kill_unresponsive_process(self):
+        if (
+            not self._closing
+            and self._process_abort_pending
+            and self.process.state() != QtCore.QProcess.NotRunning
+        ):
+            self.process.kill()
+
     def _process_finished(self, exit_code, _status):
+        pending_stderr = (
+            self.process.readAllStandardError()
+            if self.process.isOpen()
+            else b""
+        )
+        stderr_tail = self._stderr_decoder.decode(
+            pending_stderr,
+            final=True,
+        )
+        self._consume_stderr(stderr_tail, final=True)
+        self._process_abort_pending = False
         self.thread_id = None
         self.turn_id = None
         self._turn_active = False
         self._interrupt_pending = False
+        self._finished_turn_ids = []
         if self._closing:
             self.requests.clear()
             return
@@ -539,6 +716,7 @@ class AppServerClient(QtCore.QObject):
         self.thread_id = None
         self.turn_id = None
         self._turn_active = False
+        self._finished_turn_ids = []
         self.requests.clear()
         if self.feature_process.state() != QtCore.QProcess.NotRunning:
             self.feature_process.terminate()

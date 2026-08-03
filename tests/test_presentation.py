@@ -1,6 +1,6 @@
 import unittest
 
-from pymol_codex.presentation import chat_block, chat_prefix, tool_display_name
+from codex_for_pymol.presentation import chat_block, chat_prefix, tool_display_name
 
 
 class PresentationTests(unittest.TestCase):

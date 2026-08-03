@@ -35,13 +35,13 @@ codex --version
 如有需要，可以在启动 PyMOL 前明确指定可执行文件：
 
 ```text
-PYMOL_CODEX_EXECUTABLE=/absolute/path/to/codex
+CODEX_FOR_PYMOL_EXECUTABLE=/absolute/path/to/codex
 ```
 
 Windows 示例：
 
 ```powershell
-$env:PYMOL_CODEX_EXECUTABLE = "C:\Tools\codex.exe"
+$env:CODEX_FOR_PYMOL_EXECUTABLE = "C:\Tools\codex.exe"
 ```
 
 也可以稍后在插件中点击 **选择 Codex…**。
@@ -50,7 +50,7 @@ $env:PYMOL_CODEX_EXECUTABLE = "C:\Tools\codex.exe"
 
 ### 安装发布版本
 
-打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载文件名完全一致的 `pymol_codex_plugin.zip`。不要选择 GitHub 自动生成的 **Source code (zip)** 或 **Source code (tar.gz)**；它们只是仓库源码快照，不是可安装的 PyMOL 插件。不要解压插件 zip。
+打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载文件名完全一致的 `codex-for-pymol.zip`。不要选择 GitHub 自动生成的 **Source code (zip)** 或 **Source code (tar.gz)**；它们只是仓库源码快照，不是可安装的 PyMOL 插件。不要解压插件 zip。
 
 在 PyMOL 中选择：
 
@@ -59,6 +59,8 @@ Plugin → Plugin Manager → Install New Plugin → Choose file…
 ```
 
 选择下载的 zip，然后重启 PyMOL。
+
+如果从 0.2.x 或更早版本升级，请先在 PyMOL 的插件管理器中卸载旧版插件并重启 PyMOL。0.3.0 更改了插件的内部包名；如果保留旧版，PyMOL 可能同时加载两份插件。
 
 ### 从源码构建
 
@@ -76,7 +78,7 @@ Windows PowerShell：
 py scripts/build_plugin.py
 ```
 
-如果没有 `py`，但 `python` 已加入 `PATH`，可以改用 `python`。构建完成后，按照发布版相同的方式安装脚本生成的 `dist/pymol_codex_plugin.zip`。
+如果没有 `py`，但 `python` 已加入 `PATH`，可以改用 `python`。构建完成后，按照发布版相同的方式安装脚本生成的 `dist/codex-for-pymol.zip`。
 
 ## 3. 开始第一次对话
 
@@ -148,7 +150,7 @@ Codex 准备下载结构或打开本地结构文件时，PyMOL 会先请求你�
 
 如果开关关闭时 Codex 仍请求不受限 Python，插件会拒绝并请求停止当前处理。只有在理解风险且受控工具确实不够用时，才打开开关并重新发送请求。
 
-切换到 **PyMOL 控制台**、隐藏或关闭 Codex 面板，或者退出 PyMOL 时，该开关会自动关闭。
+切换到 **PyMOL 控制台**、隐藏或关闭 Codex 面板、更换或失去 Codex 后台进程，或者退出 PyMOL 时，该开关会自动关闭。
 
 一条用户请求第一次准备修改 PyMOL 前，插件会保存一个 `.pse` 撤销点。该请求中的受控修改和批准后的 Python 共用这一个撤销点；只读请求不会创建。
 
@@ -157,6 +159,8 @@ Codex 准备下载结构或打开本地结构文件时，PyMOL 会先请求你�
 ## 7. 数据与隐私
 
 发送给 Codex 的结构摘要和截图会成为模型对话的一部分。处理未公开或受监管的结构前，请先确认所在组织的数据政策。
+
+每次启动 PyMOL 都会创建新的临时 Codex 对话，不会恢复旧对话。插件只有在 `thread/start` 返回结果明确确认新对话不会写入历史记录后才会进入就绪状态。如果当前 Codex 无法确认这一点，插件会拒绝使用该对话、尝试删除尚未使用的记录并停止；如果删除也失败，面板会指出可能需要在 Codex 中手动删除的记录。
 
 插件会在 Qt 为当前用户提供的应用数据、缓存或临时目录中保存：
 
@@ -180,7 +184,7 @@ Codex 准备下载结构或打开本地结构文件时，PyMOL 会先请求你�
 
 ### 插件无法检查 Codex 功能
 
-创建对话前，插件会对当前 Codex 做一次简短的安全检查。如果无法确认可用功能，就不会启动后台服务。请运行：
+创建对话前，插件会对当前 Codex 做一次简短的安全检查。除了代理、传输、上下文维护以及模型公布的标准/快速响应档位所需的少量功能外，当前 Codex 报告的其他可选功能都会被禁用；以后新增的功能也会先保持禁用。如果无法确认功能列表，就不会启动后台服务。请运行：
 
 ```bash
 codex features list

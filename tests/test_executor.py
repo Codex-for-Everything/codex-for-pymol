@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from pymol_codex.executor import PyMOLExecutor, action_risk
+from codex_for_pymol.executor import PyMOLExecutor, action_risk
 
 
 class FakeCmd:
@@ -211,10 +211,10 @@ class ExecutorTests(unittest.TestCase):
     def test_checkpoint_names_and_pruning_survive_a_coarse_clock(self):
         created = []
         with mock.patch(
-            "pymol_codex.executor.time.strftime",
+            "codex_for_pymol.executor.time.strftime",
             return_value="20260803-120000",
         ), mock.patch(
-            "pymol_codex.executor.time.time_ns",
+            "codex_for_pymol.executor.time.time_ns",
             return_value=1722664000000000000,
         ):
             for _index in range(7):
@@ -266,10 +266,10 @@ class ExecutorTests(unittest.TestCase):
     def test_snapshots_are_private_and_pruned(self):
         created = []
         with mock.patch(
-            "pymol_codex.executor.time.time",
+            "codex_for_pymol.executor.time.time",
             return_value=1722664000.0,
         ), mock.patch(
-            "pymol_codex.executor.time.time_ns",
+            "codex_for_pymol.executor.time.time_ns",
             return_value=1722664000000000000,
         ):
             for _index in range(22):

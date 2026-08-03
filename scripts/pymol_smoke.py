@@ -9,7 +9,7 @@ from pathlib import Path
 import pymol
 from pymol import cmd
 
-from pymol_codex.executor import PyMOLExecutor
+from codex_for_pymol.executor import PyMOLExecutor
 
 
 def require(condition, message):
@@ -21,7 +21,7 @@ def main():
     pymol.finish_launching(["pymol", "-cq"])
     exit_code = 0
     try:
-        with tempfile.TemporaryDirectory(prefix="pymol-codex-smoke-") as directory:
+        with tempfile.TemporaryDirectory(prefix="codex-for-pymol-smoke-") as directory:
             executor = PyMOLExecutor(
                 cmd,
                 pymol_module=pymol,

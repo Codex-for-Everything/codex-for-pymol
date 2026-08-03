@@ -45,7 +45,7 @@ jobs:
         run: >-
           python -c "import os, tomllib;
           from pathlib import Path;
-          from pymol_codex.version import __version__;
+          from codex_for_pymol.version import __version__;
           configured = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'];
           assert configured == __version__, f'pyproject version {configured!r} does not match package version {__version__!r}';
           expected = 'v' + __version__;
@@ -58,12 +58,12 @@ jobs:
       - name: Build PyMOL plugin
         run: python scripts/build_plugin.py
       - name: Import plugin zip
-        run: python -c "import sys; sys.path.insert(0, 'dist/pymol_codex_plugin.zip'); import pymol_codex; print(pymol_codex.__version__)"
+        run: python -c "import sys; sys.path.insert(0, 'dist/codex-for-pymol.zip'); import codex_for_pymol; print(codex_for_pymol.__version__)"
       - name: Generate SHA-256 checksum
         run: >-
           python -c "from hashlib import sha256;
           from pathlib import Path;
-          package = Path('dist/pymol_codex_plugin.zip');
+          package = Path('dist/codex-for-pymol.zip');
           digest = sha256(package.read_bytes()).hexdigest();
           Path('dist/SHA256SUMS.txt').write_text(f'{digest}  {package.name}\n', encoding='ascii')"
       - name: Preserve release assets
@@ -71,7 +71,7 @@ jobs:
         with:
           name: release-assets-${{ github.ref_name }}
           path: |
-            dist/pymol_codex_plugin.zip
+            dist/codex-for-pymol.zip
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
@@ -99,10 +99,10 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           gh release create "$RELEASE_TAG" \
-            "release-assets/pymol_codex_plugin.zip#PyMOL plugin installer" \
-            "release-assets/SHA256SUMS.txt#SHA-256 checksum" \
+            "release-assets/codex-for-pymol.zip" \
+            "release-assets/SHA256SUMS.txt" \
             --verify-tag \
             --generate-notes \
-            --notes "安装：下载 pymol_codex_plugin.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。 Installation: download pymol_codex_plugin.zip and install it directly with the PyMOL Plugin Manager (do not extract it)." \
-            --title "PyMOL Codex ${RELEASE_TAG#v}" \
+            --notes "安装：下载 codex-for-pymol.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。从 0.2.x 或更早版本升级时，请先卸载旧版插件并重启 PyMOL。 Installation: download codex-for-pymol.zip and install it directly with the PyMOL Plugin Manager (do not extract it). When upgrading from 0.2.x or earlier, uninstall the old plugin and restart PyMOL first." \
+            --title "Codex for PyMOL ${RELEASE_TAG#v}" \
             --latest

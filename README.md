@@ -7,6 +7,14 @@ want in ordinary language, and Codex can inspect the current structure,
 prepare a view, highlight residues, measure distances, and help with other
 PyMOL tasks without making you write PML commands.
 
+This is an independent community project, not an official PyMOL or OpenAI
+product.
+
+> **Vibe-coding disclosure:** This project was created entirely through vibe
+> coding with Codex. Its implementation, tests, documentation, and release
+> automation were developed in collaboration with Codex and reviewed through
+> the validation described in this repository.
+
 > The current plugin interface is in Simplified Chinese. This English guide
 > shows the exact Chinese button labels so they are easy to find.
 
@@ -35,7 +43,7 @@ The plugin does not install extra Python packages into PyMOL.
 
 ## Quick start
 
-1. Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest) and download `pymol_codex_plugin.zip` from **Assets**. Do not download GitHub's automatically generated **Source code** archives, and do not extract the plugin zip.
+1. Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest) and download `codex-for-pymol.zip` from **Assets**. Do not download GitHub's automatically generated **Source code** archives, and do not extract the plugin zip.
 2. In PyMOL, open:
 
    ```text
@@ -46,6 +54,10 @@ The plugin does not install extra Python packages into PyMOL.
 4. The **Codex 助手** tab should open automatically beside
    **PyMOL 控制台** at the bottom of the main window.
 5. Type a request and press `Enter`.
+
+> Upgrading from 0.2.x or earlier: uninstall the old plugin in PyMOL's Plugin
+> Manager and restart PyMOL before installing 0.3.0 or newer. The internal
+> package name changed, so leaving the old copy installed may load both copies.
 
 If the panel does not open, select:
 
@@ -83,9 +95,16 @@ exist.
 ## Safety and privacy
 
 The normal mode uses a small set of controlled PyMOL tools. It does not give
-Codex general shell or file-editing access. The plugin first checks which
-security features the selected Codex supports; if that check fails, it stops
-instead of starting with an unknown permission boundary.
+Codex general shell or file-editing access. At startup, the plugin reads the
+exact optional-feature list from the selected Codex and disables unrelated
+capabilities, including shell, plugin, skill, and environment access. A future
+feature is disabled unless the integration has explicitly classified it as
+necessary and safe. If the list cannot be verified, startup stops instead of
+using an unknown permission boundary. Each PyMOL conversation is also started
+as an ephemeral, read-only Codex thread with no Codex environment attached.
+The plugin also verifies that Codex confirms the thread will not be saved; if
+that guarantee is unavailable, it rejects the thread and attempts to remove
+the empty record instead of silently adding it to Codex history.
 
 PyMOL asks before Codex downloads a structure or reads a local structure file.
 
@@ -94,7 +113,8 @@ PyMOL process with your operating-system permissions. It may read or change
 files, access the network, start programs, crash PyMOL, or become impossible
 to interrupt. Enabling the switch requires a warning confirmation, and every
 code block requires another approval. Switching away from, hiding, or closing
-the Codex panel disables the switch automatically.
+the Codex panel—or replacing or losing the Codex background process—disables
+the switch automatically.
 
 Before a user request first changes PyMOL, the plugin saves a `.pse` undo
 point. **撤销最新一轮的修改** can restore PyMOL session state, but it cannot
@@ -130,13 +150,20 @@ Undo points are removed during a normal shutdown. See
 ## Development
 
 The commands in this section are for contributors. Ordinary PyMOL users should
-install `pymol_codex_plugin.zip` from a GitHub Release, not a wheel, source
+install `codex-for-pymol.zip` from a GitHub Release, not a wheel, source
 distribution, or GitHub source archive.
 
 Run the unit tests:
 
 ```bash
 PYTHONPATH=src python3 -m unittest discover -s tests -v
+```
+
+Optionally verify the installed Codex App Server's temporary-conversation
+contract without sending a model request or reading normal Codex history:
+
+```bash
+PYTHONPATH=src python3 scripts/codex_app_server_smoke.py
 ```
 
 Build the wheel and source distribution with Hatchling:

@@ -174,7 +174,7 @@ def python_mode_context(enabled):
             "resend the request."
         )
     return {
-        "pymol_codex_python_mode": {
+        "codex_for_pymol_python_mode": {
             "kind": "application",
             "value": policy,
         }

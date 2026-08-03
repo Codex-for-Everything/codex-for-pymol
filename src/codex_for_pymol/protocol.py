@@ -120,6 +120,60 @@ def is_active_tool_call(params, active_thread, active_turn):
     )
 
 
+def notification_turn_id(params):
+    """Return a notification's top-level or nested turn identity."""
+    if not isinstance(params, dict):
+        return None
+    turn_id = params.get("turnId")
+    if turn_id:
+        return turn_id
+    turn = params.get("turn")
+    return turn.get("id") if isinstance(turn, dict) else None
+
+
+def is_current_notification(
+    params,
+    active_thread,
+    active_turn,
+    turn_active,
+    finished_turns=(),
+):
+    """Reject notifications belonging to another or already finished turn."""
+    if not isinstance(params, dict):
+        return False
+    thread_id = params.get("threadId")
+    if thread_id and thread_id != active_thread:
+        return False
+    turn_id = notification_turn_id(params)
+    if not turn_id:
+        return True
+    if turn_id in finished_turns:
+        return False
+    if active_turn:
+        return turn_id == active_turn
+    return bool(turn_active)
+
+
+def validated_ephemeral_thread_id(result):
+    """Return a verified ephemeral thread ID or raise ``ValueError``.
+
+    Requesting ``ephemeral`` is not enough: an older or incompatible App
+    Server could ignore an unknown request field.  The response is therefore
+    part of the privacy boundary and must explicitly confirm the property.
+    """
+    if not isinstance(result, dict):
+        raise ValueError("Codex 没有返回有效的对话结果")
+    thread = result.get("thread")
+    if not isinstance(thread, dict):
+        raise ValueError("Codex 没有返回有效的对话信息")
+    thread_id = thread.get("id")
+    if not isinstance(thread_id, str) or not thread_id.strip():
+        raise ValueError("Codex 没有返回有效的对话 ID")
+    if thread.get("ephemeral") is not True:
+        raise ValueError("当前 Codex 未确认该对话不会保存到历史记录")
+    return thread_id
+
+
 class Utf8ChunkDecoder:
     """Decode arbitrarily split process output without corrupting UTF-8."""
 

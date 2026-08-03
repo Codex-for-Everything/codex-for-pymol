@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 import unittest
+from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,19 +54,37 @@ def _is_list_item(line):
 
 
 class DocumentationTests(unittest.TestCase):
+    def test_relative_markdown_links_resolve(self):
+        failures = []
+        for path in [ROOT / "README.md"] + sorted(
+            (ROOT / "docs").glob("*.md")
+        ):
+            text = path.read_text(encoding="utf-8")
+            for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", text):
+                target = target.strip().strip("<>")
+                parsed = urlsplit(target)
+                if parsed.scheme or parsed.netloc or not parsed.path:
+                    continue
+                destination = path.parent / unquote(parsed.path)
+                if not destination.exists():
+                    failures.append(
+                        "{} -> {}".format(path.relative_to(ROOT), target)
+                    )
+        self.assertEqual(failures, [])
+
     def test_installation_docs_identify_the_real_release_asset(self):
         for path in INSTALL_DOCS:
             text = path.read_text(encoding="utf-8")
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assertIn(LATEST_RELEASE_URL, text)
-                self.assertIn("pymol_codex_plugin.zip", text)
+                self.assertIn("codex-for-pymol.zip", text)
                 self.assertIn("Source code", text)
 
     def test_release_docs_match_the_automated_assets(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"
         )
-        for asset in ("pymol_codex_plugin.zip", "SHA256SUMS.txt"):
+        for asset in ("codex-for-pymol.zip", "SHA256SUMS.txt"):
             self.assertIn(asset, workflow)
             for path in RELEASE_DOCS:
                 with self.subTest(asset=asset, path=path.relative_to(ROOT)):
@@ -75,6 +94,39 @@ class DocumentationTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assertNotRegex(text, r"git tag -a v\d+\.\d+\.\d+")
+
+        self.assertNotIn("#PyMOL plugin installer", workflow)
+        self.assertNotIn("#SHA-256 checksum", workflow)
+
+    def test_privacy_docs_match_the_ephemeral_thread_contract(self):
+        implementation = (
+            ROOT / "src" / "codex_for_pymol" / "app_server.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"ephemeral": True', implementation)
+        self.assertIn('"thread/delete"', implementation)
+        for path in (ROOT / "README.md", ROOT / "docs" / "INSTALL.md"):
+            with self.subTest(path=path.relative_to(ROOT)):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn("ephemeral", text)
+                self.assertTrue(
+                    "delete" in text or "remove" in text,
+                    "{} must explain rejected-thread cleanup".format(
+                        path.relative_to(ROOT)
+                    ),
+                )
+        for path in (
+            ROOT / "docs" / "README.zh-CN.md",
+            ROOT / "docs" / "INSTALL.zh-CN.md",
+        ):
+            with self.subTest(path=path.relative_to(ROOT)):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn("不会写入历史记录", text)
+                self.assertTrue(
+                    "删除" in text or "移除" in text,
+                    "{} 必须说明被拒绝对话的清理行为".format(
+                        path.relative_to(ROOT)
+                    ),
+                )
 
     def test_chinese_prose_is_not_hard_wrapped(self):
         failures = []
