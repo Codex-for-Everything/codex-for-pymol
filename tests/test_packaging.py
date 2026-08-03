@@ -52,7 +52,7 @@ class PackagingTests(unittest.TestCase):
             source = temporary / "source"
             output = temporary / "dist" / "plugin.zip"
             license_file = temporary / "LICENSE"
-            license_file.write_text("Example license\n", encoding="utf-8")
+            license_file.write_bytes(b"Example license\r\n")
             files = {
                 "__init__.py": "VERSION = 1\n",
                 "nested/visible.py": "VISIBLE = True\n",
@@ -72,7 +72,7 @@ class PackagingTests(unittest.TestCase):
             with ZipFile(output) as archive:
                 names = archive.namelist()
                 compression = {item.filename: item.compress_type for item in archive.infolist()}
-                license_text = archive.read("pymol_codex/LICENSE").decode("utf-8")
+                archived_license = archive.read("pymol_codex/LICENSE")
 
             self.assertEqual(
                 names,
@@ -82,7 +82,7 @@ class PackagingTests(unittest.TestCase):
                     "pymol_codex/nested/visible.py",
                 ],
             )
-            self.assertEqual(license_text, "Example license\n")
+            self.assertEqual(archived_license, license_file.read_bytes())
             self.assertTrue(all(value == ZIP_DEFLATED for value in compression.values()))
             for name in names:
                 path = PurePosixPath(name)

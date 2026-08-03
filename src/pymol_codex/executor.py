@@ -9,6 +9,7 @@ import re
 import tempfile
 import time
 import traceback
+import uuid
 from pathlib import Path
 
 from .serializer import to_jsonable
@@ -111,13 +112,16 @@ class CheckpointManager:
         self.keep = keep
         self.last_path = None
         self._consumed = set()
+        self._last_timestamp_ns = 0
 
     def create(self, label="python"):
         _ensure_private_directory(self.directory)
         stamp = time.strftime("%Y%m%d-%H%M%S")
+        timestamp_ns = max(time.time_ns(), self._last_timestamp_ns + 1)
+        self._last_timestamp_ns = timestamp_ns
         safe_label = re.sub(r"[^A-Za-z0-9_.-]+", "-", label)[:40]
-        path = self.directory / "{}-{:09d}-{}.pse".format(
-            stamp, time.time_ns() % 1_000_000_000, safe_label
+        path = self.directory / "{}-{:019d}-{}-{}.pse".format(
+            stamp, timestamp_ns, uuid.uuid4().hex, safe_label
         )
         self.cmd.save(str(path), quiet=1)
         if not path.is_file():
@@ -170,7 +174,10 @@ class CheckpointManager:
         return str(path)
 
     def _prune(self):
-        paths = sorted(self.directory.glob("*.pse"), key=lambda item: item.stat().st_mtime)
+        paths = sorted(
+            self.directory.glob("*.pse"),
+            key=lambda item: (item.stat().st_mtime_ns, item.name),
+        )
         for path in paths[:-self.keep]:
             try:
                 path.unlink()
@@ -201,6 +208,7 @@ class PyMOLExecutor:
         self.checkpoints = CheckpointManager(cmd, checkpoint_root)
         self.scene_revision = 0
         self.session = {}
+        self._last_snapshot_timestamp_ns = 0
 
     @staticmethod
     def _selection(value, default="all"):
@@ -496,8 +504,13 @@ class PyMOLExecutor:
         height = max(240, min(int(arguments.get("height", 1000)), 1800))
         ray = 1 if arguments.get("ray", False) else 0
         _ensure_private_directory(self.snapshot_directory)
-        filename = "snapshot-{}-{}-{}.png".format(
-            int(time.time() * 1000), os.getpid(), time.time_ns() % 1_000_000_000
+        timestamp_ns = max(
+            time.time_ns(),
+            self._last_snapshot_timestamp_ns + 1,
+        )
+        self._last_snapshot_timestamp_ns = timestamp_ns
+        filename = "snapshot-{:019d}-{}-{}.png".format(
+            timestamp_ns, os.getpid(), uuid.uuid4().hex
         )
         path = self.snapshot_directory / filename
         self.cmd.png(str(path), width=width, height=height, ray=ray, quiet=1)
@@ -521,7 +534,7 @@ class PyMOLExecutor:
     def _prune_snapshots(self, keep=20):
         paths = sorted(
             self.snapshot_directory.glob("*.png"),
-            key=lambda item: item.stat().st_mtime,
+            key=lambda item: (item.stat().st_mtime_ns, item.name),
         )
         for path in paths[:-keep]:
             try:

@@ -3,6 +3,7 @@ import stat
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from pymol_codex.executor import PyMOLExecutor, action_risk
 
@@ -207,6 +208,26 @@ class ExecutorTests(unittest.TestCase):
             [("load", second), ("load", first)],
         )
 
+    def test_checkpoint_names_and_pruning_survive_a_coarse_clock(self):
+        created = []
+        with mock.patch(
+            "pymol_codex.executor.time.strftime",
+            return_value="20260803-120000",
+        ), mock.patch(
+            "pymol_codex.executor.time.time_ns",
+            return_value=1722664000000000000,
+        ):
+            for _index in range(7):
+                path = Path(self.executor.checkpoints.create("same-label"))
+                created.append(path)
+                os.utime(path, ns=(1722664000000000000, 1722664000000000000))
+
+        self.assertEqual(len(set(created)), 7)
+        self.assertEqual(
+            set(self.executor.checkpoints.directory.glob("*.pse")),
+            set(created[-5:]),
+        )
+
     def test_checkpoint_directory_can_be_isolated_per_pymol_session(self):
         isolated = Path(self.temp.name) / "runtime" / "checkpoints"
         executor = PyMOLExecutor(
@@ -243,11 +264,22 @@ class ExecutorTests(unittest.TestCase):
         self.assertLess(len(result["stdout"]), 201000)
 
     def test_snapshots_are_private_and_pruned(self):
-        for _index in range(22):
-            snapshot = self.executor.snapshot({"width": 320, "height": 240})
-            self.assertTrue(Path(snapshot["path"]).is_file())
-        paths = list(self.executor.snapshot_directory.glob("*.png"))
-        self.assertEqual(len(paths), 20)
+        created = []
+        with mock.patch(
+            "pymol_codex.executor.time.time",
+            return_value=1722664000.0,
+        ), mock.patch(
+            "pymol_codex.executor.time.time_ns",
+            return_value=1722664000000000000,
+        ):
+            for _index in range(22):
+                snapshot = self.executor.snapshot({"width": 320, "height": 240})
+                path = Path(snapshot["path"])
+                created.append(path)
+                self.assertTrue(path.is_file())
+                os.utime(path, ns=(1722664000000000000, 1722664000000000000))
+        paths = set(self.executor.snapshot_directory.glob("*.png"))
+        self.assertEqual(paths, set(created[-20:]))
         if os.name != "nt":
             self.assertTrue(
                 all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in paths)
