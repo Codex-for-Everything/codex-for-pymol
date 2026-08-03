@@ -8,11 +8,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "src" / "pymol_codex"
 DIST = ROOT / "dist"
 OUTPUT = DIST / "pymol_codex_plugin.zip"
+LICENSE_FILE = ROOT / "LICENSE"
 
 
 def main():
     DIST.mkdir(parents=True, exist_ok=True)
     with ZipFile(str(OUTPUT), "w", ZIP_DEFLATED) as archive:
+        archive.write(str(LICENSE_FILE), "pymol_codex/LICENSE")
         for path in sorted(SOURCE.rglob("*")):
             relative_source = path.relative_to(SOURCE)
             if (

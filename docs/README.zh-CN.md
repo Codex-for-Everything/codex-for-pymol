@@ -136,6 +136,7 @@ python3 scripts/build_plugin.py
 
 Windows 请用 `py` 或可用的 `python` 命令替换 `python3`，并在测试前设置
 `$env:PYTHONPATH = "src"`。真实 PyMOL 冒烟测试命令见
-[安装指南](INSTALL.zh-CN.md)。
+[安装指南](INSTALL.zh-CN.md)。维护者发布云端构建和 GitHub Release 时请遵循
+双语[发布指南](RELEASING.zh-CN.md)。
 
 许可证：[English](../LICENSE) | [简体中文参考译文](LICENSE.zh-CN.md)

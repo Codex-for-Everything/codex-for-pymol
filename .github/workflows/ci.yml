@@ -2,15 +2,32 @@ name: CI
 
 on:
   push:
+    branches:
+      - "**"
   pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   unit:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
-        python-version: ["3.8", "3.12"]
+        # Python 3.8 is unavailable on GitHub's ARM64 macOS runners. Keep the
+        # minimum-version check on Intel and test a newer supported Python on
+        # ARM64.
+        include:
+          - os: macos-15-intel
+            python-version: "3.8"
+          - os: macos-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.8"
+          - os: windows-latest
+            python-version: "3.12"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

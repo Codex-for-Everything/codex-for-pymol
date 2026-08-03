@@ -151,5 +151,7 @@ python3 scripts/build_plugin.py
 On Windows, use `py` or an available `python` command instead of `python3` and
 set `$env:PYTHONPATH = "src"` before running tests. The
 [installation guide](docs/INSTALL.md) lists the real PyMOL smoke-test commands.
+Maintainers should follow the bilingual
+[release guide](docs/RELEASING.md) for cloud builds and GitHub Releases.
 
 License: [English](LICENSE) | [简体中文参考译文](docs/LICENSE.zh-CN.md)

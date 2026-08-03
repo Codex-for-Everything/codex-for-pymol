@@ -26,11 +26,12 @@ def _load_build_module():
     return module
 
 
-def _build_with(module, source, output):
+def _build_with(module, source, output, license_file=ROOT / "LICENSE"):
     with contextlib.ExitStack() as stack:
         stack.enter_context(mock.patch.object(module, "SOURCE", source))
         stack.enter_context(mock.patch.object(module, "DIST", output.parent))
         stack.enter_context(mock.patch.object(module, "OUTPUT", output))
+        stack.enter_context(mock.patch.object(module, "LICENSE_FILE", license_file))
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
         module.main()
 
@@ -50,6 +51,8 @@ class PackagingTests(unittest.TestCase):
             temporary = Path(directory)
             source = temporary / "source"
             output = temporary / "dist" / "plugin.zip"
+            license_file = temporary / "LICENSE"
+            license_file.write_text("Example license\n", encoding="utf-8")
             files = {
                 "__init__.py": "VERSION = 1\n",
                 "nested/visible.py": "VISIBLE = True\n",
@@ -64,16 +67,22 @@ class PackagingTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(contents, encoding="utf-8")
 
-            _build_with(module, source, output)
+            _build_with(module, source, output, license_file)
 
             with ZipFile(output) as archive:
                 names = archive.namelist()
                 compression = {item.filename: item.compress_type for item in archive.infolist()}
+                license_text = archive.read("pymol_codex/LICENSE").decode("utf-8")
 
             self.assertEqual(
                 names,
-                ["pymol_codex/__init__.py", "pymol_codex/nested/visible.py"],
+                [
+                    "pymol_codex/LICENSE",
+                    "pymol_codex/__init__.py",
+                    "pymol_codex/nested/visible.py",
+                ],
             )
+            self.assertEqual(license_text, "Example license\n")
             self.assertTrue(all(value == ZIP_DEFLATED for value in compression.values()))
             for name in names:
                 path = PurePosixPath(name)
@@ -88,22 +97,33 @@ class PackagingTests(unittest.TestCase):
             source = temporary / "source"
             source.mkdir()
             (source / "__init__.py").write_text("", encoding="utf-8")
+            license_file = temporary / "LICENSE"
+            license_file.write_text("Example license\n", encoding="utf-8")
             output = temporary / "dist" / "plugin.zip"
 
-            _build_with(module, source, output)
+            _build_with(module, source, output, license_file)
             with ZipFile(output, "a") as archive:
                 archive.writestr("stale.txt", "must disappear")
 
-            _build_with(module, source, output)
+            _build_with(module, source, output, license_file)
 
             with ZipFile(output) as archive:
-                self.assertEqual(archive.namelist(), ["pymol_codex/__init__.py"])
+                self.assertEqual(
+                    archive.namelist(),
+                    ["pymol_codex/LICENSE", "pymol_codex/__init__.py"],
+                )
 
     def test_real_plugin_zip_imports_in_an_isolated_interpreter(self):
         module = _load_build_module()
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "dist" / "pymol_codex_plugin.zip"
             _build_with(module, ROOT / "src" / "pymol_codex", output)
+
+            with ZipFile(output) as archive:
+                self.assertEqual(
+                    archive.read("pymol_codex/LICENSE"),
+                    (ROOT / "LICENSE").read_bytes(),
+                )
 
             command = (
                 "import sys; "

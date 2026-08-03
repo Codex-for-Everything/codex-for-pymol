@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test before release
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  build:
+    name: Build release assets
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify release commit belongs to main
+        shell: bash
+        run: |
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}^{commit}" origin/main; then
+            echo "::error::Release tags must point to a commit contained in main."
+            exit 1
+          fi
+      - name: Verify tag and package versions
+        env:
+          PYTHONPATH: src
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: >-
+          python -c "import os, tomllib;
+          from pathlib import Path;
+          from pymol_codex.version import __version__;
+          configured = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'];
+          assert configured == __version__, f'pyproject version {configured!r} does not match package version {__version__!r}';
+          expected = 'v' + __version__;
+          actual = os.environ['RELEASE_TAG'];
+          assert actual == expected, f'release tag {actual!r} must be {expected!r}'"
+      - name: Install build frontend
+        run: python -m pip install --disable-pip-version-check build==1.2.2.post1
+      - name: Build Python distributions with Hatchling
+        run: python -m build
+      - name: Build PyMOL plugin
+        run: python scripts/build_plugin.py
+      - name: Import plugin zip
+        run: python -c "import sys; sys.path.insert(0, 'dist/pymol_codex_plugin.zip'); import pymol_codex; print(pymol_codex.__version__)"
+      - name: Generate SHA-256 checksum
+        run: >-
+          python -c "from hashlib import sha256;
+          from pathlib import Path;
+          package = Path('dist/pymol_codex_plugin.zip');
+          digest = sha256(package.read_bytes()).hexdigest();
+          Path('dist/SHA256SUMS.txt').write_text(f'{digest}  {package.name}\n', encoding='ascii')"
+      - name: Preserve release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ github.ref_name }}
+          path: |
+            dist/pymol_codex_plugin.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-${{ github.ref_name }}
+          path: release-assets
+      - name: Verify downloaded checksum
+        working-directory: release-assets
+        run: sha256sum --check SHA256SUMS.txt
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "release-assets/pymol_codex_plugin.zip#PyMOL plugin installer" \
+            "release-assets/SHA256SUMS.txt#SHA-256 checksum" \
+            --verify-tag \
+            --generate-notes \
+            --notes "安装：下载 pymol_codex_plugin.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。 Installation: download pymol_codex_plugin.zip and install it directly with the PyMOL Plugin Manager (do not extract it)." \
+            --title "PyMOL Codex ${RELEASE_TAG#v}" \
+            --latest
