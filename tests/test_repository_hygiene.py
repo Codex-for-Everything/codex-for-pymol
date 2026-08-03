@@ -1,6 +1,8 @@
 from pathlib import Path
 import re
+import subprocess
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,7 +48,50 @@ def repository_text_files():
     return sorted(set(paths))
 
 
+def repository_managed_files():
+    """Return version-controlled files, with an sdist-safe fallback."""
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    except OSError:
+        completed = None
+    if completed is not None and completed.returncode == 0:
+        return [
+            ROOT / value.decode("utf-8", "surrogateescape")
+            for value in completed.stdout.split(b"\0")
+            if value
+        ]
+
+    # Source distributions do not include .git. Their contents are already
+    # selected by the build backend, so ignore only known runtime/build trees.
+    return [
+        path
+        for path in ROOT.rglob("*")
+        if path.is_file()
+        and not any(
+            part in IGNORED_DIRECTORIES
+            for part in path.relative_to(ROOT).parts
+        )
+    ]
+
+
 class RepositoryHygieneTests(unittest.TestCase):
+    def test_managed_file_inventory_uses_the_git_index(self):
+        completed = mock.Mock(
+            returncode=0,
+            stdout=b"README.md\0tests/example.py\0",
+        )
+        with mock.patch.object(subprocess, "run", return_value=completed):
+            self.assertEqual(
+                repository_managed_files(),
+                [ROOT / "README.md", ROOT / "tests" / "example.py"],
+            )
+
     def test_no_generated_or_credential_files_are_present(self):
         forbidden_names = {
             ".DS_Store",
@@ -64,14 +109,10 @@ class RepositoryHygieneTests(unittest.TestCase):
             ".pyo",
         }
         failures = []
-        for path in ROOT.rglob("*"):
+        for path in repository_managed_files():
             relative = path.relative_to(ROOT)
-            if any(part in {".git", "dist"} for part in relative.parts):
-                continue
             if path.name in forbidden_names or path.suffix.lower() in forbidden_suffixes:
                 failures.append(str(relative))
-            if path.is_dir() and path.name in IGNORED_DIRECTORIES:
-                failures.append(str(relative) + "/")
         self.assertEqual(failures, [])
 
     def test_text_has_no_local_home_paths_or_literal_credentials(self):
