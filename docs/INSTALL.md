@@ -7,15 +7,24 @@
 > The current plugin interface is in Simplified Chinese. This guide includes
 > the exact Chinese labels shown in PyMOL.
 
+> **Windows upgrade notice:** Versions 0.3.2 and earlier contain
+> Windows-specific bugs that can make button text nearly invisible and prevent
+> the plugin from finding or starting some Codex CLI installations, especially
+> npm `.cmd` launchers. Install version 0.4.0 or later on Windows.
+
 ## 1. Check Codex
 
 You need:
 
 - PyMOL 2.x or 3.x with the Qt interface;
 - Python 3.8 or newer inside PyMOL;
-- an installed and authenticated `codex` CLI;
-- a recent Codex CLI; the plugin reports clearly if the installed version is
-  missing the required integration interface.
+- a recent, authenticated Codex executable that provides the integration
+  interface required by the plugin.
+
+| Platform | Codex requirement for this plugin |
+| --- | --- |
+| **Windows** | **The standalone [Codex CLI](https://developers.openai.com/codex/cli/) is required.** Installing only the ChatGPT/Codex desktop app does not satisfy this requirement. |
+| **macOS** | Use either the standalone Codex CLI or the Codex executable bundled inside ChatGPT.app at `Contents/Resources/codex`. |
 
 The plugin does not install extra packages into PyMOL's Python environment.
 
@@ -27,6 +36,14 @@ macOS Terminal:
 codex --version
 ```
 
+If that command is unavailable but ChatGPT.app is installed, the plugin also
+checks these locations automatically:
+
+```text
+/Applications/ChatGPT.app/Contents/Resources/codex
+~/Applications/ChatGPT.app/Contents/Resources/codex
+```
+
 Windows PowerShell:
 
 ```powershell
@@ -34,9 +51,18 @@ Get-Command codex
 codex --version
 ```
 
-On macOS, the plugin also checks the Codex bundled with the ChatGPT desktop
-application. On Windows, it checks `PATH` and common per-user installation
-locations. A `codex.cmd` launcher is supported.
+The ChatGPT.app fallback is macOS-specific. On Windows, install the standalone
+CLI: the desktop app's packaged executable is not a stable external CLI
+interface for this plugin and may be restricted to the app package. The plugin
+checks `PATH`, npm's default user directory, `NPM_CONFIG_PREFIX`, and other
+common per-user CLI locations. Native executables and `.cmd` or `.bat`
+launchers are supported. One supported installation method is:
+
+```powershell
+npm install -g @openai/codex
+```
+
+Confirm `codex --version` in a new PowerShell window, then restart PyMOL.
 
 If needed, set the executable explicitly before starting PyMOL:
 
@@ -239,12 +265,19 @@ warning, but the PyMOL tool result is still returned.
 
 ### Codex is not found
 
-Click **选择 Codex…** and select the real Codex executable, not the ChatGPT
-application itself. On Windows, `codex.exe` and `codex.cmd` are supported.
+On Windows, verify `codex --version` in an independent PowerShell window. If it
+fails, install the standalone CLI; do not select an executable from inside the
+desktop app package.
+
+On macOS, ChatGPT.app is detected automatically when its bundled Codex exists.
+Do not select the `.app` directory itself. For a manual selection, choose its
+`Contents/Resources/codex` file or a separately installed Codex CLI.
 
 ### Codex is not signed in
 
-Run `codex` in Terminal or PowerShell, complete sign-in, and restart PyMOL.
+For a standalone CLI, run `codex` in Terminal or PowerShell, complete sign-in,
+and restart PyMOL. When using the macOS ChatGPT.app fallback, sign in to the
+ChatGPT app and restart PyMOL.
 
 ### The plugin cannot check Codex features
 
@@ -311,8 +344,10 @@ the dock test through the real GUI launcher:
 ```bash
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_smoke.py
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_ui_smoke.py
-PYTHONPATH=src /path/to/pymol/launcher -r scripts/pymol_dock_smoke.py
+PYTHONPATH=src /path/to/pymol/launcher -k -r scripts/pymol_dock_smoke.py
 ```
 
 On Windows PowerShell, set `$env:PYTHONPATH = "src"` first and use the
-corresponding executables from the PyMOL installation.
+corresponding executables from the PyMOL installation. The `-k` flag keeps an
+older installed plugin from shadowing the workspace version during the dock
+test.

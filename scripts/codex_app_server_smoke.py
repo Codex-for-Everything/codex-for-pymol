@@ -132,7 +132,7 @@ def main():
     features = discover_codex_features(executable, timeout=10)
     if not features:
         raise RuntimeError("Codex did not return a usable feature catalog")
-    program, arguments = process_invocation(executable, features)
+    invocation = process_invocation(executable, features)
 
     with tempfile.TemporaryDirectory(
         prefix="codex-for-pymol-app-server-smoke-"
@@ -140,9 +140,10 @@ def main():
         private_home = Path(directory) / "codex-home"
         private_home.mkdir(mode=0o700)
         environment = os.environ.copy()
+        environment.update(invocation.environment)
         environment["CODEX_HOME"] = str(private_home)
         process = subprocess.Popen(
-            [program] + arguments,
+            [invocation.program] + invocation.arguments,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

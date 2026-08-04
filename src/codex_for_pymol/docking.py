@@ -1,5 +1,7 @@
 """Integration with PyMOL's Qt main-window docking area."""
 
+import os
+
 from pymol.Qt import QtCore, QtGui, QtWidgets
 
 from .ui import CodexDialog
@@ -29,6 +31,12 @@ def console_palette(source):
     """Build a complete widget palette from the console's base/text colors."""
     source_palette = source.palette()
     palette = QtGui.QPalette(source_palette)
+    native_button_palette = None
+    if os.name == "nt":
+        application = QtWidgets.QApplication.instance()
+        style = application.style() if application is not None else None
+        if style is not None:
+            native_button_palette = style.standardPalette()
     groups = (
         QtGui.QPalette.Active,
         QtGui.QPalette.Inactive,
@@ -38,15 +46,19 @@ def console_palette(source):
         QtGui.QPalette.Window,
         QtGui.QPalette.Base,
         QtGui.QPalette.AlternateBase,
-        QtGui.QPalette.Button,
         QtGui.QPalette.ToolTipBase,
     )
     foreground_roles = (
         QtGui.QPalette.WindowText,
         QtGui.QPalette.Text,
-        QtGui.QPalette.ButtonText,
         QtGui.QPalette.ToolTipText,
     )
+    if native_button_palette is None:
+        # Preserve the established macOS appearance. Windows native styles
+        # paint a light button surface independently of the dark console, so
+        # their matching button roles are copied from the active Qt style.
+        background_roles += (QtGui.QPalette.Button,)
+        foreground_roles += (QtGui.QPalette.ButtonText,)
     for group in groups:
         background = source_palette.color(group, QtGui.QPalette.Base)
         foreground = source_palette.color(group, QtGui.QPalette.Text)
@@ -54,6 +66,16 @@ def console_palette(source):
             palette.setColor(group, role, background)
         for role in foreground_roles:
             palette.setColor(group, role, foreground)
+        if native_button_palette is not None:
+            for role in (
+                QtGui.QPalette.Button,
+                QtGui.QPalette.ButtonText,
+            ):
+                palette.setBrush(
+                    group,
+                    role,
+                    native_button_palette.brush(group, role),
+                )
         if hasattr(QtGui.QPalette, "PlaceholderText"):
             placeholder = QtGui.QColor(foreground)
             placeholder.setAlphaF(0.6)

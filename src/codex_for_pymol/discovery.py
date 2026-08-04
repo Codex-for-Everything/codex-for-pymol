@@ -6,9 +6,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 
 FEATURE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+FEATURE_DISCOVERY_TIMEOUT_SECONDS = 10
+WINDOWS_LAUNCHER_ENV = "CODEX_FOR_PYMOL_WINDOWS_LAUNCHER"
 ENABLED_APP_SERVER_FEATURES = frozenset(("respect_system_proxy",))
 PASSTHROUGH_APP_SERVER_FEATURES = frozenset(
     (
@@ -23,6 +26,14 @@ PASSTHROUGH_APP_SERVER_FEATURES = frozenset(
 
 class CodexFeatureDiscoveryError(RuntimeError):
     """Raised when the selected Codex cannot report its feature catalog."""
+
+
+class ProcessInvocation(NamedTuple):
+    """A process command and the environment values required to run it."""
+
+    program: str
+    arguments: list
+    environment: dict
 
 
 def candidate_paths():
@@ -44,15 +55,33 @@ def candidate_paths():
             ]
         )
     elif os.name == "nt":
-        local = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+        home = Path.home()
+        local = Path(
+            os.environ.get("LOCALAPPDATA") or home / "AppData" / "Local"
+        )
+        roaming = Path(
+            os.environ.get("APPDATA") or home / "AppData" / "Roaming"
+        )
         candidates.extend(
             [
                 str(local / "Programs" / "Codex" / "codex.exe"),
-                str(local / "Programs" / "ChatGPT" / "resources" / "codex.exe"),
-                str(local / "Microsoft" / "WindowsApps" / "codex.exe"),
-                str(local / "Microsoft" / "WindowsApps" / "codex.cmd"),
+                str(roaming / "npm" / "codex.exe"),
+                str(roaming / "npm" / "codex.cmd"),
+                str(home / ".local" / "bin" / "codex.exe"),
+                str(home / ".local" / "bin" / "codex.cmd"),
             ]
         )
+        npm_prefix = os.environ.get("NPM_CONFIG_PREFIX")
+        if npm_prefix:
+            prefix = Path(npm_prefix).expanduser()
+            candidates.extend(
+                [
+                    str(prefix / "codex.exe"),
+                    str(prefix / "codex.cmd"),
+                    str(prefix / "bin" / "codex.exe"),
+                    str(prefix / "bin" / "codex.cmd"),
+                ]
+            )
 
     result = []
     seen = set()
@@ -78,30 +107,29 @@ def find_codex(configured=None):
 
 
 def _command_invocation(executable, arguments):
-    """Return a safely quoted process invocation for an executable or script."""
+    """Return a safe process invocation for an executable or script."""
     # os.path.splitext does not instantiate a platform-specific pathlib class,
     # which also makes this branch straightforward to test on non-Windows hosts.
     suffix = os.path.splitext(executable)[1].lower()
     if os.name == "nt" and suffix in {".cmd", ".bat"}:
-        if any(character in executable for character in '\0\r\n"%'):
+        if any(character in executable for character in '\0\r\n"'):
             raise ValueError("Codex launcher path contains an invalid character")
-        # list2cmdline does not quote a path that contains '&' but no spaces.
-        # Since cmd.exe interprets that character as a command separator,
-        # always quote the launcher itself. Delayed expansion is also disabled
-        # so a literal '!' in a valid Windows path remains data. Percent signs
-        # are rejected above because cmd.exe expands them even inside quotes
-        # (and CALL can expand them a second time).
-        command = 'call "{}"'.format(executable)
-        if arguments:
-            command += " " + subprocess.list2cmdline(list(arguments))
-        return os.environ.get("COMSPEC", "cmd.exe"), [
-            "/d",
-            "/v:off",
-            "/s",
-            "/c",
-            command,
-        ]
-    return executable, list(arguments)
+        # Keep the untrusted path out of the command line. The environment
+        # value includes its own quotes, so expansion remains one command token
+        # even when the path contains spaces or cmd.exe metacharacters. Delayed
+        # expansion is disabled so a literal '!' remains data as well.
+        return ProcessInvocation(
+            os.environ.get("COMSPEC", "cmd.exe"),
+            [
+                "/d",
+                "/v:off",
+                "/c",
+                "%{}%".format(WINDOWS_LAUNCHER_ENV),
+            ]
+            + list(arguments),
+            {WINDOWS_LAUNCHER_ENV: '"{}"'.format(executable)},
+        )
+    return ProcessInvocation(executable, list(arguments), {})
 
 
 def parse_feature_list(output):
@@ -119,21 +147,29 @@ def parse_feature_list(output):
     return features
 
 
-def discover_codex_features(executable, timeout=3):
+def discover_codex_features(
+    executable,
+    timeout=FEATURE_DISCOVERY_TIMEOUT_SECONDS,
+):
     """Query the selected user's Codex binary for its current feature names."""
-    program, arguments = _command_invocation(
+    invocation = _command_invocation(
         executable,
         ["features", "list"],
     )
+    environment = None
+    if invocation.environment:
+        environment = os.environ.copy()
+        environment.update(invocation.environment)
     try:
         completed = subprocess.run(
-            [program] + arguments,
+            [invocation.program] + invocation.arguments,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
             check=False,
+            env=environment,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -168,7 +204,7 @@ def app_server_arguments(executable, available_features=None):
 
 
 def process_invocation(executable, available_features=None):
-    """Return ``(program, args)`` suitable for QProcess on this platform."""
+    """Return a process invocation suitable for QProcess on this platform."""
     return _command_invocation(
         executable,
         app_server_arguments(executable, available_features),

@@ -105,6 +105,38 @@ class DocumentationTests(unittest.TestCase):
                 self.assertNotIn("`codex-for-pymol.zip`", text)
                 self.assertIn("Source code", text)
 
+    def test_codex_requirements_distinguish_windows_and_macos(self):
+        english = [ROOT / "README.md", ROOT / "docs" / "INSTALL.md"]
+        chinese = [
+            ROOT / "docs" / "README.zh-CN.md",
+            ROOT / "docs" / "INSTALL.zh-CN.md",
+        ]
+        for path in english:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("standalone [Codex CLI]", text)
+                self.assertTrue(
+                    "not sufficient" in text or "does not satisfy" in text
+                )
+                self.assertIn("Contents/Resources/codex", text)
+        for path in chinese:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("必须安装独立的 [Codex CLI]", text)
+                self.assertIn("Contents/Resources/codex", text)
+
+    def test_windows_upgrade_notice_names_fixed_version(self):
+        for path in INSTALL_DOCS:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("0.3.2", text)
+                self.assertIn("0.4.0", text)
+                self.assertIn("Windows", text)
+        if RELEASE_WORKFLOW.is_file():
+            workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+            self.assertIn("versions 0.3.2 and earlier", workflow)
+            self.assertIn("Upgrade to version 0.4.0 or later", workflow)
+
     @unittest.skipUnless(
         RELEASE_WORKFLOW.is_file(),
         "GitHub workflow is intentionally absent from source distributions",
@@ -132,7 +164,11 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn("RELEASE_INSTALL_NOTES: |-", workflow)
         self.assertRegex(
             workflow,
-            r"重启 PyMOL。\n\s*\n\s*Installation:",
+            r"Windows：0\.3\.2[^\n]+0\.4\.0[^\n]+\n\s*\n\s*安装：",
+        )
+        self.assertRegex(
+            workflow,
+            r"Windows: versions 0\.3\.2[^\n]+0\.4\.0[^\n]+\n\s*\n\s*Installation:",
         )
         self.assertIn('--notes "$release_notes"', workflow)
 

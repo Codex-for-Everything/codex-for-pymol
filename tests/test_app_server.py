@@ -4,6 +4,8 @@ import types
 import unittest
 from unittest import mock
 
+from codex_for_pymol.discovery import ProcessInvocation
+
 
 class _Signal:
     def __init__(self):
@@ -30,6 +32,7 @@ def _load_app_server_without_pymol():
 
     qt_core = types.SimpleNamespace(
         QObject=object,
+        QProcess=types.SimpleNamespace(NotRunning=0),
         QTimer=_Timer,
         Signal=lambda *_args: _Signal(),
         pyqtSignal=lambda *_args: _Signal(),
@@ -69,6 +72,43 @@ def _client(generation=1):
 class AppServerThreadTests(unittest.TestCase):
     def setUp(self):
         _Timer.callbacks.clear()
+
+    def test_feature_probe_uses_shared_timeout(self):
+        client = object.__new__(app_server.AppServerClient)
+        client.executable = "/opt/codex"
+        client.runtime_directory = "/temporary/pymol-session"
+        client.process = mock.Mock()
+        client.process.state.return_value = app_server.QtCore.QProcess.NotRunning
+        client.feature_process = mock.Mock()
+        client.feature_process.state.return_value = (
+            app_server.QtCore.QProcess.NotRunning
+        )
+        client.status = _Signal()
+        client._closing = True
+        client._process_abort_pending = True
+        client._feature_probe_active = False
+        client._feature_probe_generation = 0
+
+        with mock.patch.object(
+            app_server,
+            "feature_invocation",
+            return_value=ProcessInvocation(
+                "/opt/codex",
+                ["features", "list"],
+                {},
+            ),
+        ):
+            client.start()
+
+        client.feature_process.start.assert_called_once_with(
+            "/opt/codex",
+            ["features", "list"],
+        )
+        self.assertEqual(len(_Timer.callbacks), 1)
+        self.assertEqual(
+            _Timer.callbacks[0][0],
+            app_server.FEATURE_DISCOVERY_TIMEOUT_SECONDS * 1000,
+        )
 
     def test_new_thread_requests_an_ephemeral_least_privilege_session(self):
         client = _client(generation=8)

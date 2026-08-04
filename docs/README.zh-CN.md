@@ -10,6 +10,8 @@ Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直�
 
 详细指南：[English](INSTALL.md) | [简体中文](INSTALL.zh-CN.md)
 
+> **Windows 用户请注意：** 0.3.2 及更早版本包含 Windows 专属问题，可能导致按钮文字几乎不可见，或者无法发现、启动部分 Codex CLI 安装，尤其是 npm 的 `.cmd` 启动器。Windows 用户请安装 0.4.0 或更高版本。
+
 ## 可以做什么
 
 - 检查已经加载的对象、链、残基、配体、选择和当前视角；
@@ -24,8 +26,14 @@ Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直�
 
 - 带 Qt 图形界面的 PyMOL 2.x 或 3.x；
 - PyMOL 内置 Python 3.8 或更高版本；
-- 已安装并登录的 `codex` CLI；
-- 较新的 Codex CLI；如果当前版本缺少插件需要的接口，插件会明确提示。
+- 一个较新且已登录的 Codex 可执行文件；Windows 与 macOS 的要求不同，见下表。
+
+| 平台 | 本插件需要的 Codex |
+| --- | --- |
+| **Windows** | **必须安装独立的 [Codex CLI](https://developers.openai.com/codex/cli/)**，并确认 PowerShell 可以运行 `codex --version`。只安装 ChatGPT/Codex 桌面 App 不够 |
+| **macOS** | 二选一：安装独立 Codex CLI；或者安装内部带有 `Contents/Resources/codex` 的 ChatGPT.app。插件会自动检测这两种来源 |
+
+如果找到的可执行文件版本太旧、缺少插件所需接口，插件会明确提示。
 
 插件不会向 PyMOL 的 Python 环境安装额外软件包。
 

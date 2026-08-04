@@ -1,8 +1,9 @@
 """Smoke-test docking against a running real PyMOL Qt main window."""
 
+import os
+import sys
 import threading
 import time
-import sys
 import traceback
 
 from pymol import cmd, gui
@@ -46,6 +47,51 @@ def log(message):
     print(message, file=sys.__stdout__, flush=True)
 
 
+def quit_pymol(exit_code):
+    try:
+        cmd.quit(exit_code)
+    except BaseException:
+        application = QtWidgets.QApplication.instance()
+        if application is not None:
+            application.exit(exit_code)
+
+
+def require_platform_button_palette(widget, context):
+    if os.name != "nt":
+        return
+    application = QtWidgets.QApplication.instance()
+    require(application is not None, "Qt application was not initialized")
+    expected = application.style().standardPalette()
+    buttons = widget.findChildren(QtWidgets.QPushButton)
+    require(buttons, "{} has no buttons to verify".format(context))
+    for button in buttons:
+        for group in (
+            QtGui.QPalette.Active,
+            QtGui.QPalette.Inactive,
+            QtGui.QPalette.Disabled,
+        ):
+            for role in (
+                QtGui.QPalette.Button,
+                QtGui.QPalette.ButtonText,
+            ):
+                actual_brush = button.palette().brush(group, role)
+                expected_brush = expected.brush(group, role)
+                require(
+                    actual_brush == expected_brush,
+                    (
+                        "{} button {!r} does not use the Windows native palette "
+                        "(group={}, role={}, actual={}, expected={})"
+                    ).format(
+                        context,
+                        button.text(),
+                        int(group),
+                        int(role),
+                        actual_brush.color().name(),
+                        expected_brush.color().name(),
+                    ),
+                )
+
+
 def run_test():
     try:
         main_window = gui.get_qtwindow()
@@ -53,16 +99,16 @@ def run_test():
 
         ui.AuditLogger = NullAuditLogger
         ui.PyMOLExecutor = NullExecutor
-        original_create = docking.create_codex_dock
-        docking.create_codex_dock = lambda window: original_create(
-            window,
-            dialog_class=TestCodexDialog,
+        codex_for_pymol._dock, codex_for_pymol._dialog = (
+            docking.create_codex_dock(
+                main_window,
+                dialog_class=TestCodexDialog,
+            )
         )
 
-        codex_for_pymol.__init_plugin__()
         QtWidgets.QApplication.processEvents()
         dialog = codex_for_pymol._dialog
-        require(dialog is not None, "plugin did not open automatically at startup")
+        require(dialog is not None, "plugin dialog was not created")
         dock = main_window.findChild(
             QtWidgets.QDockWidget,
             docking.DOCK_OBJECT_NAME,
@@ -119,6 +165,7 @@ def run_test():
             == feedback.palette().color(QtGui.QPalette.Text),
             "real status or Python text color does not match the console",
         )
+        require_platform_button_palette(dialog, "real Codex panel")
         require(
             dialog.transcript.frameShape() == QtWidgets.QFrame.NoFrame,
             "real Codex transcript still has a visible frame",
@@ -266,9 +313,7 @@ def run_test():
         print(RESULT["error"], file=sys.__stderr__, flush=True)
     finally:
         COMPLETION.set()
-        application = QtWidgets.QApplication.instance()
-        if application is not None:
-            application.exit(1 if RESULT["error"] else 0)
+        quit_pymol(1 if RESULT["error"] else 0)
 
 
 def schedule_in_gui_thread():
@@ -283,9 +328,7 @@ def schedule_in_gui_thread():
     RESULT["error"] = "Real PyMOL GUI dispatcher was not initialized"
     print(RESULT["error"], file=sys.__stderr__, flush=True)
     COMPLETION.set()
-    application = QtWidgets.QApplication.instance()
-    if application is not None:
-        application.quit()
+    quit_pymol(1)
 
 
 def watchdog():
@@ -293,13 +336,7 @@ def watchdog():
         return
     RESULT["error"] = "Real PyMOL dock smoke test timed out"
     print(RESULT["error"], file=sys.__stderr__, flush=True)
-    application = QtWidgets.QApplication.instance()
-    if application is not None:
-        QtCore.QMetaObject.invokeMethod(
-            application,
-            "quit",
-            QtCore.Qt.QueuedConnection,
-        )
+    quit_pymol(1)
 
 
 threading.Thread(target=schedule_in_gui_thread, daemon=True).start()

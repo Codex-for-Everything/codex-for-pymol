@@ -108,7 +108,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_INSTALL_NOTES: |-
+            Windows：0.3.2 及更早版本存在按钮文字对比度和部分 Codex CLI 发现/启动问题，请升级到 0.4.0 或更高版本。
+
             安装：下载 codex-for-pymol-VERSION.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。从 0.2.x 或更早版本升级时，请先卸载旧版插件并重启 PyMOL。
+
+            Windows: versions 0.3.2 and earlier have button-text contrast and Codex CLI discovery/launch issues. Upgrade to version 0.4.0 or later.
 
             Installation: download codex-for-pymol-VERSION.zip and install it directly with the PyMOL Plugin Manager (do not extract it). When upgrading from 0.2.x or earlier, uninstall the old plugin and restart PyMOL first.
         run: |

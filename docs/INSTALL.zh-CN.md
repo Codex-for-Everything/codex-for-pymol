@@ -4,14 +4,20 @@
 
 [返回项目说明](README.zh-CN.md)
 
+> **Windows 用户请注意：** 0.3.2 及更早版本包含 Windows 专属问题，可能导致按钮文字几乎不可见，或者无法发现、启动部分 Codex CLI 安装，尤其是 npm 的 `.cmd` 启动器。请在 Windows 上安装 0.4.0 或更高版本。
+
 ## 1. 检查 Codex
 
 需要准备：
 
 - 带 Qt 图形界面的 PyMOL 2.x 或 3.x；
 - PyMOL 内置 Python 3.8 或更高版本；
-- 已安装并登录的 `codex` CLI；
-- 较新的 Codex CLI；如果当前版本缺少插件需要的接口，插件会明确提示。
+- 一个较新、已登录并且提供插件所需接口的 Codex 可执行文件。
+
+| 平台 | 本插件需要的 Codex |
+| --- | --- |
+| **Windows** | **必须安装独立的 [Codex CLI](https://developers.openai.com/codex/cli/)**。只安装 ChatGPT/Codex 桌面 App 不满足本插件的运行要求 |
+| **macOS** | 二选一：使用独立 Codex CLI；或者使用 ChatGPT.app 内置的 `Contents/Resources/codex` |
 
 插件不会向 PyMOL 的 Python 环境安装额外软件包。
 
@@ -23,6 +29,13 @@ macOS Terminal：
 codex --version
 ```
 
+如果该命令不存在，但已经安装 ChatGPT.app，插件还会自动检查：
+
+```text
+/Applications/ChatGPT.app/Contents/Resources/codex
+~/Applications/ChatGPT.app/Contents/Resources/codex
+```
+
 Windows PowerShell：
 
 ```powershell
@@ -30,7 +43,13 @@ Get-Command codex
 codex --version
 ```
 
-在 macOS 上，插件还会检查 ChatGPT 桌面应用自带的 Codex；在 Windows 上，插件会检查 `PATH` 和常见的用户级安装位置，并支持 `codex.cmd` 启动器。
+ChatGPT.app 内置 Codex 的回退路径只适用于 macOS。Windows 必须安装独立 CLI：桌面 App 包内的可执行文件不是本插件可以稳定依赖的外部 CLI 接口，而且可能只允许 App 包自身启动。插件会检查 `PATH`、npm 默认用户目录、`NPM_CONFIG_PREFIX` 和其他常见的用户级 CLI 安装位置，并支持原生可执行文件以及 `.cmd`、`.bat` 启动器。一种受支持的安装方式是：
+
+```powershell
+npm install -g @openai/codex
+```
+
+请在新的 PowerShell 窗口中确认 `codex --version` 可以运行，然后重启 PyMOL。
 
 如有需要，可以在启动 PyMOL 前明确指定可执行文件：
 
@@ -176,11 +195,13 @@ Codex 准备下载结构或打开本地结构文件时，PyMOL 会先请求你�
 
 ### 找不到 Codex
 
-点击 **选择 Codex…**，选择真正的 Codex 可执行文件，不要选择 ChatGPT 应用本身。Windows 支持 `codex.exe` 和 `codex.cmd`。
+Windows 请先在独立 PowerShell 窗口中确认 `codex --version` 可以运行；如果失败，请安装独立 CLI，不要选择桌面 App 包内部的可执行文件。
+
+macOS 会自动检测 ChatGPT.app 内置的 Codex，不要选择 `.app` 目录本身。必须手动选择时，请选择其中的 `Contents/Resources/codex` 文件，或者选择单独安装的 Codex CLI。
 
 ### Codex 尚未登录
 
-在 Terminal 或 PowerShell 中运行一次 `codex`，完成登录，然后重启 PyMOL。
+使用独立 CLI 时，请在 Terminal 或 PowerShell 中运行一次 `codex`，完成登录，然后重启 PyMOL。使用 macOS ChatGPT.app 回退路径时，请登录 ChatGPT 应用并重启 PyMOL。
 
 ### 插件无法检查 Codex 功能
 
@@ -229,7 +250,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```bash
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_smoke.py
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_ui_smoke.py
-PYTHONPATH=src /path/to/pymol/launcher -r scripts/pymol_dock_smoke.py
+PYTHONPATH=src /path/to/pymol/launcher -k -r scripts/pymol_dock_smoke.py
 ```
 
-Windows PowerShell 请先设置 `$env:PYTHONPATH = "src"`，然后使用 PyMOL 安装目录中的对应可执行文件。
+Windows PowerShell 请先设置 `$env:PYTHONPATH = "src"`，然后使用 PyMOL 安装目录中的对应可执行文件。dock 测试使用 `-k` 隔离已安装的旧插件，避免它遮蔽工作区版本。

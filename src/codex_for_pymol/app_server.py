@@ -6,6 +6,7 @@ from pymol.Qt import QtCore
 
 from .discovery import (
     CodexFeatureDiscoveryError,
+    FEATURE_DISCOVERY_TIMEOUT_SECONDS,
     feature_invocation,
     parse_feature_list,
     process_invocation,
@@ -29,6 +30,15 @@ from .tool_specs import (
     python_mode_context,
 )
 from .version import __version__
+
+
+def _start_process(process, invocation):
+    if invocation.environment:
+        environment = QtCore.QProcessEnvironment.systemEnvironment()
+        for name, value in invocation.environment.items():
+            environment.insert(name, value)
+        process.setProcessEnvironment(environment)
+    process.start(invocation.program, invocation.arguments)
 
 
 class AppServerClient(QtCore.QObject):
@@ -112,12 +122,12 @@ class AppServerClient(QtCore.QObject):
         self._feature_probe_active = True
         self._feature_probe_generation += 1
         generation = self._feature_probe_generation
-        program, arguments = feature_invocation(self.executable)
+        invocation = feature_invocation(self.executable)
         self.feature_process.setWorkingDirectory(self.runtime_directory)
         self.status.emit("正在检查当前 Codex 的安全功能…")
-        self.feature_process.start(program, arguments)
+        _start_process(self.feature_process, invocation)
         QtCore.QTimer.singleShot(
-            3000,
+            FEATURE_DISCOVERY_TIMEOUT_SECONDS * 1000,
             lambda: self._feature_probe_timeout(generation),
         )
 
@@ -186,7 +196,7 @@ class AppServerClient(QtCore.QObject):
         if self._closing:
             return
         try:
-            program, arguments = process_invocation(
+            invocation = process_invocation(
                 self.executable,
                 available_features,
             )
@@ -198,7 +208,7 @@ class AppServerClient(QtCore.QObject):
         self._feature_probe_active = False
         self.process.setWorkingDirectory(self.runtime_directory)
         self.status.emit("正在启动 Codex 后台服务…")
-        self.process.start(program, arguments)
+        _start_process(self.process, invocation)
 
     def _initialize(self):
         params = {

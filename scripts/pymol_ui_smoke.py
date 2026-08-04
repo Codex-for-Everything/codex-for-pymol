@@ -10,6 +10,7 @@ from pymol.Qt import QtCore, QtGui, QtWidgets
 
 from codex_for_pymol import app_server as app_server_module
 from codex_for_pymol import ui
+from codex_for_pymol.discovery import ProcessInvocation
 from codex_for_pymol.docking import create_codex_dock
 
 
@@ -85,7 +86,6 @@ class FakeClient:
         self.turn_settings = []
         self.responses = []
         self.interrupt_count = 0
-        self.refresh_count = 0
         self.events = []
 
     def start_turn(
@@ -101,7 +101,7 @@ class FakeClient:
         self.turn_settings.append((model, effort, service_tier))
 
     def refresh_models(self):
-        self.refresh_count += 1
+        pass
 
     def respond(self, request_id, response):
         self.responses.append((request_id, response))
@@ -124,6 +124,28 @@ class TestCodexDialog(ui.CodexDialog):
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
+
+
+def require_button_palette(widget, expected_palette, context):
+    buttons = widget.findChildren(QtWidgets.QPushButton)
+    require(buttons, "{} has no buttons to verify".format(context))
+    for button in buttons:
+        for group in (
+            QtGui.QPalette.Active,
+            QtGui.QPalette.Inactive,
+            QtGui.QPalette.Disabled,
+        ):
+            for role in (
+                QtGui.QPalette.Button,
+                QtGui.QPalette.ButtonText,
+            ):
+                require(
+                    button.palette().brush(group, role)
+                    == expected_palette.brush(group, role),
+                    "{} button colors do not match the platform theme policy".format(
+                        context
+                    ),
+                )
 
 
 def main():
@@ -224,6 +246,29 @@ def main():
             == 0o700,
             "runtime directory is not private",
         )
+    else:
+        launcher_directory = dialog.runtime_directory / "Codex & Tools (100%)"
+        launcher_directory.mkdir()
+        launcher = launcher_directory / "codex.cmd"
+        launcher.write_text(
+            "@echo off\n"
+            "if /I not \"%~1\"==\"features\" exit /b 7\n"
+            "if /I not \"%~2\"==\"list\" exit /b 8\n"
+            "echo shell_tool stable true\n",
+            encoding="utf-8",
+        )
+        invocation = app_server_module.feature_invocation(
+            str(launcher)
+        )
+        launcher_process = QtCore.QProcess(dialog)
+        app_server_module._start_process(launcher_process, invocation)
+        require(
+            launcher_process.waitForFinished(5000)
+            and launcher_process.exitCode() == 0
+            and b"shell_tool stable true"
+            in bytes(launcher_process.readAllStandardOutput()),
+            "PyMOL QProcess could not run a Windows Codex launcher with spaces",
+        )
 
     protocol_client = ui.AppServerClient(
         "codex",
@@ -244,8 +289,11 @@ def main():
     )
     try:
         app_server_module.feature_invocation = lambda _executable: (
-            str(dialog.runtime_directory / "missing-codex-executable"),
-            [],
+            ProcessInvocation(
+                str(dialog.runtime_directory / "missing-codex-executable"),
+                [],
+                {},
+            )
         )
         failed_probe_client.start()
         probe_wait = QtCore.QEventLoop()
@@ -271,15 +319,19 @@ def main():
     original_process_invocation = app_server_module.process_invocation
     try:
         app_server_module.feature_invocation = lambda _executable: (
-            sys.executable,
-            ["-c", "print('shell_tool stable true')"],
+            ProcessInvocation(
+                sys.executable,
+                ["-c", "print('shell_tool stable true')"],
+                {},
+            )
         )
 
         def fake_app_server_invocation(_executable, available_features):
             captured_features.append(set(available_features))
-            return (
+            return ProcessInvocation(
                 sys.executable,
                 ["-c", "import time; time.sleep(5)"],
+                {},
             )
 
         app_server_module.process_invocation = fake_app_server_invocation
@@ -1262,6 +1314,23 @@ def main():
     console_editor.setFont(console_font)
     console_editor.document().setDocumentMargin(3.0)
     dark_palette = console_editor.palette()
+    for group in (
+        QtGui.QPalette.Active,
+        QtGui.QPalette.Inactive,
+        QtGui.QPalette.Disabled,
+    ):
+        # PyMOL's dark console palette can carry a light ButtonText role even
+        # though the Windows style paints a light native button surface.
+        dark_palette.setColor(
+            group,
+            QtGui.QPalette.Button,
+            QtGui.QColor("#f0f0f0"),
+        )
+        dark_palette.setColor(
+            group,
+            QtGui.QPalette.ButtonText,
+            QtGui.QColor("#e8e8e8"),
+        )
     dark_palette.setColor(QtGui.QPalette.Base, QtGui.QColor("#222222"))
     dark_palette.setColor(QtGui.QPalette.Text, QtGui.QColor("#e8e8e8"))
     console_editor.setPalette(dark_palette)
@@ -1311,6 +1380,26 @@ def main():
         docked_dialog.status_label.palette().color(QtGui.QPalette.WindowText)
         == QtGui.QColor("#e8e8e8"),
         "Codex controls did not inherit the console foreground",
+    )
+    if os.name == "nt":
+        expected_button_palette = app.style().standardPalette()
+    else:
+        expected_button_palette = QtGui.QPalette(dark_palette)
+        for group in (
+            QtGui.QPalette.Active,
+            QtGui.QPalette.Inactive,
+            QtGui.QPalette.Disabled,
+        ):
+            expected_button_palette.setColor(
+                group, QtGui.QPalette.Button, QtGui.QColor("#222222")
+            )
+            expected_button_palette.setColor(
+                group, QtGui.QPalette.ButtonText, QtGui.QColor("#e8e8e8")
+            )
+    require_button_palette(
+        docked_dialog,
+        expected_button_palette,
+        "Codex panel",
     )
     require(
         docked_dialog.status_separator.height() == 1
@@ -1368,6 +1457,22 @@ def main():
         == QtGui.QColor("#e8e8e8"),
         "model details text does not inherit the dark foreground",
     )
+    require_button_palette(
+        themed_model_dialog,
+        expected_button_palette,
+        "model settings dialog",
+    )
+    themed_approval = ui.PythonApprovalDialog(
+        "print('ok')",
+        "UI theme test",
+        docked_dialog,
+    )
+    require_button_palette(
+        themed_approval,
+        expected_button_palette,
+        "Python approval dialog",
+    )
+    themed_approval.close()
     root_margins = docked_dialog.layout().contentsMargins()
     require(
         (

@@ -20,6 +20,11 @@ product.
 
 Detailed guide: [English](docs/INSTALL.md) | [简体中文](docs/INSTALL.zh-CN.md)
 
+> **Windows upgrade notice:** Versions 0.3.2 and earlier contain
+> Windows-specific bugs that can make button text nearly invisible and prevent
+> the plugin from finding or starting some Codex CLI installations, especially
+> npm `.cmd` launchers. Windows users should install version 0.4.0 or later.
+
 ## What it can do
 
 - Inspect loaded objects, chains, residues, ligands, selections, and the view.
@@ -35,9 +40,16 @@ Detailed guide: [English](docs/INSTALL.md) | [简体中文](docs/INSTALL.zh-CN.m
 
 - PyMOL 2.x or 3.x with the Qt interface
 - Python 3.8 or newer inside PyMOL
-- An installed and authenticated `codex` CLI
-- A recent Codex CLI; the plugin reports clearly if the installed version is
-  missing the required integration interface
+- A recent, authenticated Codex executable; the accepted source differs by
+  platform as shown below
+
+| Platform | Codex requirement for this plugin |
+| --- | --- |
+| **Windows** | Install the standalone [Codex CLI](https://developers.openai.com/codex/cli/) and make sure `codex --version` works in PowerShell. Installing only the ChatGPT/Codex desktop app is not sufficient. |
+| **macOS** | Either install the standalone Codex CLI, or install ChatGPT.app with its bundled `Contents/Resources/codex` executable. The plugin detects both automatically. |
+
+The plugin reports clearly if the selected executable is missing the required
+integration interface.
 
 The plugin does not install extra Python packages into PyMOL.
 
