@@ -10,6 +10,8 @@ Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直�
 
 详细指南：[English](INSTALL.md) | [简体中文](INSTALL.zh-CN.md)
 
+插件界面支持简体中文和英文。首次使用时会跟随操作系统语言；之后可以在 **设置… → 界面语言** 中随时切换。已有中文界面的控件含义、操作方式和安全行为保持不变。
+
 > **Windows 用户请注意：** 0.3.2 及更早版本包含 Windows 专属问题，可能导致按钮文字几乎不可见，或者无法发现、启动部分 Codex CLI 安装，尤其是 npm 的 `.cmd` 启动器。Windows 用户请安装 0.4.0 或更高版本。
 
 ## 可以做什么
@@ -55,7 +57,7 @@ Codex for PyMOL 会在 PyMOL 中加入一个 Codex 聊天面板。你可以直�
 如果面板没有打开，请选择：
 
 ```text
-Plugin → PyMOL Codex 助手
+Plugin → Codex for PyMOL
 ```
 
 也可以在 PyMOL 命令行输入 `codex_chat`。源码构建和故障排查请参阅 [安装指南](INSTALL.zh-CN.md)。
@@ -67,7 +69,7 @@ Plugin → PyMOL Codex 助手
 | **发送** | 发送当前消息 |
 | **停止** | 请求 Codex 停止当前处理 |
 | **新建对话** | 清空聊天记录并创建新的 Codex 对话 |
-| **模型设置…** | 选择当前 Codex 账号实际返回的模型和选项 |
+| **设置…** | 修改界面语言，并选择当前 Codex 账号实际返回的模型和选项 |
 | **启用不受限 Python（高风险）** | 允许经过单独批准的 Python 代码在 PyMOL 内运行 |
 | **撤销最新一轮的修改** | 恢复到最近一条修改型用户请求执行之前 |
 

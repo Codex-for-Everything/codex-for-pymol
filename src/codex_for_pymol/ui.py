@@ -12,8 +12,10 @@ from pymol.Qt import QtCore, QtGui, QtWidgets
 
 from .app_server import AppServerClient
 from .audit import AuditLogger
-from .discovery import find_codex
+from .discovery import find_codex, is_supported_launcher
 from .executor import PyMOLExecutor, action_risk
+from .i18n import EN, ZH_CN, get_locale, set_locale, text as tr
+from .preferences import PreferenceStore
 from .presentation import chat_block, chat_prefix, tool_display_name
 from .protocol import (
     diagnostic_fingerprint,
@@ -71,18 +73,20 @@ class PythonApprovalDialog(QtWidgets.QDialog):
 
     def __init__(self, code, reason, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("批准执行不受限 Python")
+        self.setObjectName("codex_python_approval_dialog")
+        self.setWindowTitle(tr("dialog.python.title"))
         self.resize(760, 620)
         layout = QtWidgets.QVBoxLayout(self)
 
-        warning = QtWidgets.QLabel(
-            "<b>不受限代码将在 PyMOL 进程内运行。</b><br>"
-            "它不受沙箱保护，可能修改文件、访问网络、导致 PyMOL 崩溃，"
-            "也可能在运行后无法中断。"
-        )
+        warning = QtWidgets.QLabel(tr("dialog.python.warning"))
         warning.setWordWrap(True)
         layout.addWidget(warning)
-        reason_label = QtWidgets.QLabel("原因：" + (reason or "未提供原因"))
+        reason_label = QtWidgets.QLabel(
+            tr(
+                "dialog.python.reason",
+                reason=reason or tr("dialog.python.no_reason"),
+            )
+        )
         reason_label.setWordWrap(True)
         layout.addWidget(reason_label)
 
@@ -95,29 +99,47 @@ class PythonApprovalDialog(QtWidgets.QDialog):
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Yes | QtWidgets.QDialogButtonBox.No
         )
-        buttons.button(QtWidgets.QDialogButtonBox.Yes).setText("执行代码")
-        buttons.button(QtWidgets.QDialogButtonBox.No).setText("取消")
+        buttons.button(QtWidgets.QDialogButtonBox.Yes).setText(
+            tr("button.execute_code")
+        )
+        buttons.button(QtWidgets.QDialogButtonBox.No).setText(
+            tr("button.cancel")
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        if parent is not None:
+            self.apply_host_palette(parent.palette())
 
-
-EFFORT_LABELS = {
-    "none": "无",
-    "minimal": "最低",
-    "low": "低",
-    "medium": "中",
-    "high": "高",
-    "xhigh": "很高",
-    "max": "最高",
-    "ultra": "极强",
-}
+    def apply_host_palette(self, palette):
+        """Use the same complete palette as the embedded PyMOL console."""
+        palette = QtGui.QPalette(palette)
+        self.setPalette(palette)
+        foreground = palette.color(
+            QtGui.QPalette.Active,
+            QtGui.QPalette.WindowText,
+        )
+        self.setStyleSheet(
+            "QDialog#codex_python_approval_dialog QLabel {{"
+            "color: rgba({red}, {green}, {blue}, {alpha});"
+            "background: transparent;"
+            "}}".format(
+                red=foreground.red(),
+                green=foreground.green(),
+                blue=foreground.blue(),
+                alpha=foreground.alpha(),
+            )
+        )
+        for widget in self.findChildren(QtWidgets.QWidget):
+            widget.setPalette(palette)
 
 
 def reasoning_effort_label(value):
     value = str(value or "")
-    translated = EFFORT_LABELS.get(value)
-    return "{}（{}）".format(translated, value) if translated else value
+    translated = tr("effort." + value) if value in {
+        "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"
+    } else ""
+    return tr("effort.display", label=translated, value=value) if translated else value
 
 
 class ModelSettingsDialog(QtWidgets.QDialog):
@@ -134,10 +156,11 @@ class ModelSettingsDialog(QtWidgets.QDialog):
         effort="",
         service_tier="",
         catalog_error="",
+        language=ZH_CN,
         parent=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Codex 模型设置")
+        self.setWindowTitle(tr("settings.title"))
         self.setObjectName("codex_model_settings_dialog")
         self.resize(560, 230)
         self.setAutoFillBackground(True)
@@ -150,25 +173,30 @@ class ModelSettingsDialog(QtWidgets.QDialog):
         )
 
         layout = QtWidgets.QVBoxLayout(self)
-        intro = QtWidgets.QLabel(
-            "选项来自当前 Codex 账号和所选模型，并从下一条消息开始生效。"
-        )
+        intro = QtWidgets.QLabel(tr("settings.intro"))
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
         form = QtWidgets.QFormLayout()
+        self.language_combo = QtWidgets.QComboBox()
+        self.language_combo.addItem(tr("language.chinese"), ZH_CN)
+        self.language_combo.addItem(tr("language.english"), EN)
+        language_index = self.language_combo.findData(language)
+        self.language_combo.setCurrentIndex(max(0, language_index))
+        form.addRow(tr("settings.language"), self.language_combo)
+
         self.model_combo = QtWidgets.QComboBox()
         self.model_combo.setSizeAdjustPolicy(
             QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon
         )
         self.model_combo.setMinimumContentsLength(20)
-        form.addRow("模型：", self.model_combo)
+        form.addRow(tr("settings.model"), self.model_combo)
 
         self.effort_combo = QtWidgets.QComboBox()
-        form.addRow("推理强度：", self.effort_combo)
+        form.addRow(tr("settings.effort"), self.effort_combo)
 
         self.service_tier_combo = QtWidgets.QComboBox()
-        form.addRow("响应速度：", self.service_tier_combo)
+        form.addRow(tr("settings.speed"), self.service_tier_combo)
         layout.addLayout(form)
 
         self.details_label = QtWidgets.QLabel()
@@ -181,7 +209,7 @@ class ModelSettingsDialog(QtWidgets.QDialog):
         layout.addWidget(self.details_label, 1)
 
         actions = QtWidgets.QHBoxLayout()
-        self.refresh_button = QtWidgets.QPushButton("刷新模型列表")
+        self.refresh_button = QtWidgets.QPushButton(tr("settings.refresh"))
         self.refresh_button.setMinimumWidth(
             self.refresh_button.sizeHint().width()
         )
@@ -192,8 +220,8 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.Save
             | QtWidgets.QDialogButtonBox.Cancel
         )
-        buttons.button(QtWidgets.QDialogButtonBox.Save).setText("保存")
-        buttons.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
+        buttons.button(QtWidgets.QDialogButtonBox.Save).setText(tr("button.save"))
+        buttons.button(QtWidgets.QDialogButtonBox.Cancel).setText(tr("button.cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         actions.addWidget(buttons)
@@ -225,12 +253,12 @@ class ModelSettingsDialog(QtWidgets.QDialog):
                 alpha=foreground.alpha(),
             )
         )
-        for label in self.findChildren(QtWidgets.QLabel):
-            label.setPalette(palette)
+        for widget in self.findChildren(QtWidgets.QWidget):
+            widget.setPalette(palette)
 
     def _request_refresh(self):
         self.refresh_button.setEnabled(False)
-        self.refresh_button.setText("正在刷新…")
+        self.refresh_button.setText(tr("settings.refreshing"))
         self.refresh_requested.emit()
 
     def _set_status_text(self, text=""):
@@ -246,13 +274,13 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             # Do not suspend and resume painting for the normal refresh case.
             # Re-enabling updates can itself trigger a full native-window
             # repaint on macOS even when none of the catalog controls changed.
-            self.refresh_button.setText("刷新模型列表")
+            self.refresh_button.setText(tr("settings.refresh"))
             self.refresh_button.setEnabled(True)
             if error:
                 self._set_status_text(error)
             elif not self._models_by_value:
                 self._set_status_text(
-                    "模型列表尚未加载，暂时无法配置。"
+                    tr("settings.catalog_unavailable")
                 )
             else:
                 self._set_status_text()
@@ -285,7 +313,7 @@ class ModelSettingsDialog(QtWidgets.QDialog):
                     self._models_by_value[value] = item
                     label = str(item.get("displayName") or value)[:120]
                     if item.get("isDefault"):
-                        label += "（默认）"
+                        label += tr("settings.default_suffix")
                         if default_model_index < 0:
                             default_model_index = self.model_combo.count()
                     self.model_combo.addItem(label, value)
@@ -304,13 +332,13 @@ class ModelSettingsDialog(QtWidgets.QDialog):
                 self.model_combo.blockSignals(False)
             self._populate_model_options(effort, service_tier)
 
-            self.refresh_button.setText("刷新模型列表")
+            self.refresh_button.setText(tr("settings.refresh"))
             self.refresh_button.setEnabled(True)
             if error:
                 self._set_status_text(error)
             elif not self._models_by_value:
                 self._set_status_text(
-                    "模型列表尚未加载，暂时无法配置。"
+                    tr("settings.catalog_unavailable")
                 )
             else:
                 self._set_status_text()
@@ -344,7 +372,7 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             seen_efforts.add(value)
             label = reasoning_effort_label(value)
             if value == default_effort:
-                label += "（默认）"
+                label += tr("settings.default_suffix")
                 default_effort_index = self.effort_combo.count()
             self.effort_combo.addItem(label, value)
             if value == effort:
@@ -382,7 +410,7 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             # Current Codex catalogs represent baseline/standard speed by
             # omitting the serviceTier override. Only additional speed tiers
             # may therefore appear in serviceTiers.
-            self.service_tier_combo.addItem("标准（默认）", "")
+            self.service_tier_combo.addItem(tr("settings.standard_default"), "")
             default_tier_index = 0
             if not service_tier:
                 tier_index = 0
@@ -393,7 +421,7 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             seen_tiers.add(value)
             name = str(tier.get("name") or value)[:80]
             if value == default_tier:
-                name += "（默认）"
+                name += tr("settings.default_suffix")
                 default_tier_index = self.service_tier_combo.count()
             self.service_tier_combo.addItem(name, value)
             if value == service_tier:
@@ -422,21 +450,30 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             str(self.service_tier_combo.currentData() or ""),
         )
 
+    def selected_language(self):
+        return str(self.language_combo.currentData() or ZH_CN)
+
 
 class CodexDialog(QtWidgets.QDialog):
+    language_changed = (
+        QtCore.Signal(str) if hasattr(QtCore, "Signal") else QtCore.pyqtSignal(str)
+    )
+
     def __init__(self, parent=None):
         if parent is None:
             parent = QtWidgets.QApplication.activeWindow()
         super().__init__(parent)
-        self.setWindowTitle("PyMOL Codex 助手")
-        self.resize(720, 760)
-        self.setAttribute(QtCore.Qt.WA_DeleteOnClose, False)
-        self.setAutoFillBackground(True)
-
         self.settings = QtCore.QSettings(
             "CodexForPyMOL",
             "CodexForPyMOL",
         )
+        system_locale = QtCore.QLocale.system().name()
+        self.preferences = PreferenceStore(self.settings, system_locale)
+        set_locale(self.preferences.language())
+        self.setWindowTitle(tr("app.window_title"))
+        self.resize(720, 760)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose, False)
+        self.setAutoFillBackground(True)
         self._runtime_temporary_directory = tempfile.TemporaryDirectory(
             prefix="codex-for-pymol-runtime-"
         )
@@ -475,8 +512,10 @@ class CodexDialog(QtWidgets.QDialog):
         self._model_catalog_validated = False
         self._model_catalog_error = ""
         self._model_settings_dialog = None
+        self._codex_selector_retry = False
         self._turn_checkpoint_key = None
         self._turn_checkpoint_path = None
+        self._ready = False
 
         self._build_ui()
         QtCore.QTimer.singleShot(0, self._connect_codex)
@@ -491,7 +530,7 @@ class CodexDialog(QtWidgets.QDialog):
         self.transcript = QtWidgets.QPlainTextEdit()
         self.transcript.setObjectName("codex_for_pymol_transcript")
         self.transcript.setReadOnly(True)
-        self.transcript.setPlaceholderText("对话内容将在这里显示。")
+        self.transcript.setPlaceholderText(tr("transcript.placeholder"))
         self.transcript.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.transcript.setMinimumHeight(0)
         self.transcript.verticalScrollBar().setObjectName("pymol_scroll_bar")
@@ -516,14 +555,14 @@ class CodexDialog(QtWidgets.QDialog):
 
         self.status_row = QtWidgets.QHBoxLayout()
         self.status_row.setSpacing(6)
-        self.status_label = QtWidgets.QLabel("尚未连接")
+        self.status_label = QtWidgets.QLabel(tr("status.disconnected"))
         self.status_label.setWordWrap(False)
         self.status_label.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding,
             QtWidgets.QSizePolicy.Fixed,
         )
         self.status_row.addWidget(self.status_label, 1)
-        self.choose_button = QtWidgets.QPushButton("选择 Codex…")
+        self.choose_button = QtWidgets.QPushButton(tr("button.select_codex"))
         self.choose_button.clicked.connect(self._choose_codex)
         self.status_row.addWidget(self.choose_button)
         footer_layout.addLayout(self.status_row)
@@ -534,10 +573,7 @@ class CodexDialog(QtWidgets.QDialog):
             QtCore.Qt.ScrollBarAsNeeded
         )
         self.input.verticalScrollBar().setObjectName("pymol_scroll_bar")
-        self.input.setPlaceholderText(
-            "例如：加载 1FPU，找出主要配体并显示周围 4 Å 的残基。"
-            "（Enter 发送，Ctrl+Enter 换行）"
-        )
+        self.input.setPlaceholderText(tr("input.placeholder"))
         self._sync_input_height()
         self.input.send_requested.connect(self._send)
         footer_layout.addWidget(self.input)
@@ -545,30 +581,27 @@ class CodexDialog(QtWidgets.QDialog):
         self.action_row = QtWidgets.QHBoxLayout()
         self.action_row.setContentsMargins(0, 0, 0, 0)
         self.action_row.setSpacing(6)
-        self.send_button = QtWidgets.QPushButton("发送")
+        self.send_button = QtWidgets.QPushButton(tr("button.send"))
         self.send_button.setDefault(True)
         self.send_button.clicked.connect(self._send)
         self.action_row.addWidget(self.send_button)
-        self.stop_button = QtWidgets.QPushButton("停止")
+        self.stop_button = QtWidgets.QPushButton(tr("button.stop"))
         self.stop_button.clicked.connect(self._stop)
         self.action_row.addWidget(self.stop_button)
-        self.new_button = QtWidgets.QPushButton("新建对话")
+        self.new_button = QtWidgets.QPushButton(tr("button.new_chat"))
         self.new_button.clicked.connect(self._new_thread)
         self.action_row.addWidget(self.new_button)
-        self.model_settings_button = QtWidgets.QPushButton("模型设置…")
+        self.model_settings_button = QtWidgets.QPushButton(tr("button.settings"))
         self.model_settings_button.clicked.connect(
             self._open_model_settings
         )
         self.action_row.addWidget(self.model_settings_button)
         self.action_row.addStretch(1)
-        self.python_checkbox = QtWidgets.QCheckBox("启用不受限 Python（高风险）")
+        self.python_checkbox = QtWidgets.QCheckBox(tr("python.enable"))
         self.python_checkbox.toggled.connect(self._toggle_python)
         self.action_row.addWidget(self.python_checkbox)
-        self.undo_button = QtWidgets.QPushButton("撤销最新一轮的修改")
-        self.undo_button.setToolTip(
-            "恢复到最新一轮曾修改 PyMOL 的用户请求开始前。"
-            "不能撤销普通文件、网络或外部程序的副作用。"
-        )
+        self.undo_button = QtWidgets.QPushButton(tr("button.undo"))
+        self.undo_button.setToolTip(tr("undo.tooltip"))
         self.undo_button.clicked.connect(
             self._undo_last_instruction
         )
@@ -669,7 +702,7 @@ class CodexDialog(QtWidgets.QDialog):
             self.footer_widget.setFixedHeight(footer_layout.sizeHint().height())
 
     def _configured_codex(self):
-        configured = self.settings.value("codex_executable", "", type=str)
+        configured = self.preferences.codex_executable()
         return find_codex(configured)
 
     def _connect_codex(self):
@@ -679,9 +712,7 @@ class CodexDialog(QtWidgets.QDialog):
         executable = self._configured_codex()
         if not executable:
             self._set_codex_selector_visible(True)
-            self.status_label.setText(
-                "未找到 Codex CLI。请点击“选择 Codex…”指定其位置。"
-            )
+            self.status_label.setText(tr("error.codex_not_found"))
             return
         self._set_codex_selector_visible(False)
         if self.client:
@@ -708,30 +739,49 @@ class CodexDialog(QtWidgets.QDialog):
         )
         self._model_catalog = []
         self._model_catalog_validated = False
-        self._model_catalog_error = "正在从 Codex 获取可用模型…"
+        self._model_catalog_error = tr("settings.fetching")
         self.client.start()
 
     def _choose_codex(self):
         if hasattr(QtWidgets.QFileDialog, "getOpenFileName"):
+            file_filter = (
+                tr("file.codex_filter_windows")
+                if os.name == "nt"
+                else tr("file.all")
+            )
             path, _ = QtWidgets.QFileDialog.getOpenFileName(
-                self, "选择 Codex 可执行文件", str(Path.home())
+                self,
+                tr("file.codex_title"),
+                str(Path.home()),
+                file_filter,
             )
         else:
             path = ""
         if path:
-            self.settings.setValue("codex_executable", path)
+            if not is_supported_launcher(path):
+                self._show_error(
+                    tr("error.invalid_windows_launcher")
+                )
+                return
+            self.preferences.set_codex_executable(path)
             self._connect_codex()
 
     def _client_ready(self, thread_id):
         self._set_codex_selector_visible(False)
         self._set_ready(True)
-        self._append_system("已连接到 Codex。")
+        self._append_system(tr("system.connected"))
 
     def _set_codex_selector_visible(self, visible, retry=False):
-        self.choose_button.setText("重新选择 Codex…" if retry else "选择 Codex…")
+        self._codex_selector_retry = bool(retry)
+        self.choose_button.setText(
+            tr("button.reselect_codex")
+            if retry
+            else tr("button.select_codex")
+        )
         self.choose_button.setVisible(visible)
 
     def _set_ready(self, ready):
+        self._ready = bool(ready)
         self.send_button.setEnabled(ready)
         self.stop_button.setEnabled(False)
         self.new_button.setEnabled(ready)
@@ -773,7 +823,7 @@ class CodexDialog(QtWidgets.QDialog):
             self._show_error(str(exc))
             return
         self.input.clear()
-        self._append_block("你", text)
+        self._append_block(tr("role.user"), text)
         self._audit(
             "user_instruction",
             text=text,
@@ -785,7 +835,7 @@ class CodexDialog(QtWidgets.QDialog):
     def _stop(self):
         if self.client and self.client.interrupt():
             self._append_system(
-                "已请求停止。已经在 PyMOL 内运行的代码可能无法中断。"
+                tr("system.stop_requested")
             )
 
     def _new_thread(self):
@@ -801,22 +851,10 @@ class CodexDialog(QtWidgets.QDialog):
         self.client.new_thread()
 
     def _saved_model_settings(self):
-        return (
-            self.settings.value("codex_model", "", type=str) or "",
-            self.settings.value(
-                "codex_reasoning_effort", "", type=str
-            )
-            or "",
-            self.settings.value(
-                "codex_service_tier", "", type=str
-            )
-            or "",
-        )
+        return self.preferences.model_settings()
 
     def _save_model_settings(self, model, effort, service_tier):
-        self.settings.setValue("codex_model", model)
-        self.settings.setValue("codex_reasoning_effort", effort)
-        self.settings.setValue("codex_service_tier", service_tier)
+        self.preferences.set_model_settings(model, effort, service_tier)
         self._update_model_settings_button()
 
     def _effective_model_settings(self):
@@ -892,20 +930,16 @@ class CodexDialog(QtWidgets.QDialog):
                 changed = True
         if changed:
             self._save_model_settings(model, effort, service_tier)
-            self._append_system(
-                "已保存的模型配置当前不可用，已恢复相应的默认选项。"
-            )
+            self._append_system(tr("system.model_reset"))
 
     def _refresh_model_catalog(self):
         if self.client is None:
-            self._model_catalog_failed("Codex 尚未连接，无法刷新模型列表。")
+            self._model_catalog_failed(tr("settings.not_connected"))
             return
         try:
             self.client.refresh_models()
         except Exception:
-            self._model_catalog_failed(
-                "无法刷新模型列表；可以继续使用 Codex 默认设置。"
-            )
+            self._model_catalog_failed(tr("settings.refresh_failed"))
 
     def _open_model_settings(self):
         model, effort, service_tier = self._saved_model_settings()
@@ -915,6 +949,7 @@ class CodexDialog(QtWidgets.QDialog):
             effort,
             service_tier,
             self._model_catalog_error,
+            get_locale(),
             self,
         )
         dialog.refresh_requested.connect(self._refresh_model_catalog)
@@ -922,22 +957,28 @@ class CodexDialog(QtWidgets.QDialog):
         try:
             if dialog.exec_() == QtWidgets.QDialog.Accepted:
                 model, effort, service_tier = dialog.current_settings()
+                language = self.preferences.set_language(
+                    dialog.selected_language()
+                )
+                language_changed = language != get_locale()
+                set_locale(language)
                 self._save_model_settings(
                     model,
                     effort,
                     service_tier,
                 )
-                self.status_label.setText(
-                    "模型设置已保存，将从下一条消息开始生效"
-                )
+                if language_changed:
+                    self._retranslate_ui()
+                    self.language_changed.emit(tr("app.dock_title"))
+                self.status_label.setText(tr("settings.saved"))
         finally:
             self._model_settings_dialog = None
             dialog.deleteLater()
 
     def _update_model_settings_button(self):
         model, effort, service_tier = self._saved_model_settings()
-        model_name = "Codex 默认"
-        tier_name = service_tier or "标准（默认）"
+        model_name = tr("settings.codex_default")
+        tier_name = service_tier or tr("settings.standard_default")
         for item in self._model_catalog:
             value = str(item.get("model") or item.get("id") or "")
             if model and value == model:
@@ -947,7 +988,9 @@ class CodexDialog(QtWidgets.QDialog):
                     item.get("displayName") or value
                 )[:120]
                 if default_name:
-                    model_name = "Codex 默认（{}）".format(default_name)
+                    model_name = tr(
+                        "settings.codex_default_named", name=default_name
+                    )
             selected_model = (
                 value == model
                 if model
@@ -966,15 +1009,37 @@ class CodexDialog(QtWidgets.QDialog):
         effort_name = (
             reasoning_effort_label(effort)
             if effort
-            else "模型默认"
+            else tr("settings.model_default")
         )
         self.model_settings_button.setToolTip(
-            "模型：{}\n推理强度：{}\n响应速度：{}".format(
-                model_name,
-                effort_name,
-                tier_name,
+            tr(
+                "settings.tooltip",
+                model=model_name,
+                effort=effort_name,
+                speed=tier_name,
             )
         )
+
+    def _retranslate_ui(self):
+        """Refresh every persistent control after a language change."""
+        self.setWindowTitle(tr("app.window_title"))
+        self.transcript.setPlaceholderText(tr("transcript.placeholder"))
+        self.input.setPlaceholderText(tr("input.placeholder"))
+        self.send_button.setText(tr("button.send"))
+        self.stop_button.setText(tr("button.stop"))
+        self.new_button.setText(tr("button.new_chat"))
+        self.model_settings_button.setText(tr("button.settings"))
+        self.python_checkbox.setText(tr("python.enable"))
+        self.undo_button.setText(tr("button.undo"))
+        self.undo_button.setToolTip(tr("undo.tooltip"))
+        self.status_label.setText(
+            tr("status.ready") if self._ready else tr("status.disconnected")
+        )
+        self._set_codex_selector_visible(
+            not self.choose_button.isHidden(),
+            retry=self._codex_selector_retry,
+        )
+        self._update_model_settings_button()
 
     def _protocol_message(self, message):
         method = message.get("method")
@@ -1003,7 +1068,7 @@ class CodexDialog(QtWidgets.QDialog):
                 ):
                     return
                 self._append_system(
-                    "正在执行：{}".format(tool_display_name(tool))
+                    tr("tool.running", tool=tool_display_name(tool))
                 )
 
     def _tool_call(self, request_id, params):
@@ -1171,7 +1236,7 @@ class CodexDialog(QtWidgets.QDialog):
         try:
             self.client.respond(request_id, response)
         except Exception as exc:
-            self._show_error("无法返回 PyMOL 工具结果：{}".format(exc))
+            self._show_error(tr("error.return_tool_result", detail=exc))
 
     def _cache_tool_response(self, key, response):
         self._tool_response_cache[key] = response
@@ -1222,10 +1287,7 @@ class CodexDialog(QtWidgets.QDialog):
                     "error": "Unrestricted Python is disabled.",
                     "error_code": "unrestricted_python_disabled",
                     "requires_user_action": True,
-                    "required_action": (
-                        "Enable “启用不受限 Python（高风险）” in the PyMOL "
-                        "plugin and resend the request."
-                    ),
+                    "required_action": tr("python.required_action"),
                     "turn_will_stop": True,
                 },
             )
@@ -1258,15 +1320,11 @@ class CodexDialog(QtWidgets.QDialog):
             reason = " ".join(str(arguments.get("reason") or "").split())
             reason = reason[:300]
 
-        message = (
-            "已阻止不受限 Python，并请求停止当前处理。"
-            "请优先使用受控工具；如果确实无法完成，请先启用"
-            "“不受限 Python（高风险）”，然后重新发送请求。"
-        )
+        message = tr("system.python_blocked")
         if reason:
-            message += " Codex 给出的原因：" + reason
+            message += tr("system.python_reason", reason=reason)
         self._append_system(message)
-        self.status_label.setText("需要启用不受限 Python；正在停止当前处理…")
+        self.status_label.setText(tr("status.python_stopping"))
 
         stop_requested = False
         try:
@@ -1274,7 +1332,7 @@ class CodexDialog(QtWidgets.QDialog):
                 self.client and self.client.interrupt()
             )
         except Exception as exc:
-            self._show_error("无法停止当前处理：{}".format(exc))
+            self._show_error(tr("error.stop_turn", detail=exc))
         self._audit(
             "unrestricted_python_blocked",
             call_id=call_id,
@@ -1285,16 +1343,14 @@ class CodexDialog(QtWidgets.QDialog):
     def _approve_risky_action(self, risk, operations):
         message = QtWidgets.QMessageBox(self)
         message.setIcon(QtWidgets.QMessageBox.Warning)
-        message.setWindowTitle("批准访问外部数据")
-        message.setText("Codex 希望 PyMOL {}。".format(risk))
-        message.setInformativeText(
-            "此操作可能会发送网络请求，或读取插件目录以外的文件。"
-        )
+        message.setWindowTitle(tr("dialog.external.title"))
+        message.setText(tr("dialog.external.request", risk=risk))
+        message.setInformativeText(tr("dialog.external.detail"))
         message.setDetailedText(json.dumps(operations, ensure_ascii=False, indent=2))
         message.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         message.setDefaultButton(QtWidgets.QMessageBox.No)
-        message.button(QtWidgets.QMessageBox.Yes).setText("允许")
-        message.button(QtWidgets.QMessageBox.No).setText("拒绝")
+        message.button(QtWidgets.QMessageBox.Yes).setText(tr("button.allow"))
+        message.button(QtWidgets.QMessageBox.No).setText(tr("button.deny"))
         return message.exec_() == QtWidgets.QMessageBox.Yes
 
     def _request_user_input(self, request_id, params):
@@ -1325,22 +1381,19 @@ class CodexDialog(QtWidgets.QDialog):
                         )
                     else:
                         lines.append("- " + str(option))
-                prompt += "\n\n选项：\n" + "\n".join(lines)
+                prompt += "\n\n" + tr("input.options") + "\n" + "\n".join(lines)
             if question.get("isSecret"):
-                prompt += (
-                    "\n\n此输入将被遮蔽，但仍会发送给 Codex。"
-                    "不要输入 API Key、密码或其他不应发送给模型的秘密。"
-                )
+                prompt += "\n\n" + tr("input.secret_warning")
             dialog = QtWidgets.QInputDialog(self)
             dialog.setWindowTitle(
-                str(question.get("header") or "Codex 需要补充信息")[:100]
+                str(question.get("header") or tr("input.more_info"))[:100]
             )
             dialog.setLabelText(prompt[:4000])
             dialog.setInputMode(QtWidgets.QInputDialog.TextInput)
             if question.get("isSecret"):
                 dialog.setTextEchoMode(QtWidgets.QLineEdit.Password)
-            dialog.setOkButtonText("确定")
-            dialog.setCancelButtonText("取消")
+            dialog.setOkButtonText(tr("button.ok"))
+            dialog.setCancelButtonText(tr("button.cancel"))
             accepted = dialog.exec_() == QtWidgets.QDialog.Accepted
             value = dialog.textValue()
             if not accepted:
@@ -1365,20 +1418,14 @@ class CodexDialog(QtWidgets.QDialog):
         try:
             self.client.respond(request_id, {"answers": answers})
         except Exception as exc:
-            self._show_error("无法返回用户输入：{}".format(exc))
+            self._show_error(tr("error.return_user_input", detail=exc))
 
     def _toggle_python(self, checked):
         if checked:
             approved = self._confirm(
-                "启用不受限 Python？",
-                (
-                    "代码将以你的操作系统权限在 PyMOL 内运行。"
-                    "它可以读取或删除文件、访问网络、启动程序、"
-                    "导致 PyMOL 崩溃，也可能无法中断。\n\n"
-                    "切换到“PyMOL 控制台”标签，或隐藏、关闭 Codex "
-                    "插件面板，或退出 PyMOL 时，此设置会自动关闭。"
-                ),
-                accept_text="启用",
+                tr("python.confirm_title"),
+                tr("python.confirm_text"),
+                accept_text=tr("button.enable"),
             )
             if not approved:
                 self.python_checkbox.blockSignals(True)
@@ -1407,14 +1454,9 @@ class CodexDialog(QtWidgets.QDialog):
 
     def _undo_last_instruction(self):
         approved = self._confirm(
-            "撤销最新一轮的修改？",
-            (
-                "这会恢复到最新一轮曾修改 PyMOL 的用户请求开始前，"
-                "并撤销该轮对当前 PyMOL 会话的修改。\n\n"
-                "普通文件、网络请求、软件包安装和外部程序的副作用"
-                "无法撤销。"
-            ),
-            accept_text="撤销修改",
+            tr("undo.confirm_title"),
+            tr("undo.confirm_text"),
+            accept_text=tr("button.undo_changes"),
         )
         if not approved:
             return
@@ -1423,9 +1465,7 @@ class CodexDialog(QtWidgets.QDialog):
             self.executor.scene_revision += 1
             self._turn_checkpoint_key = None
             self._turn_checkpoint_path = None
-            self._append_system(
-                "已撤销最新一轮对 PyMOL 会话的修改。"
-            )
+            self._append_system(tr("system.undo_done"))
             self._audit("instruction_changes_undone", path=path)
         except Exception as exc:
             self._show_error(str(exc))
@@ -1438,20 +1478,23 @@ class CodexDialog(QtWidgets.QDialog):
         if not self._audit_warning_shown:
             self._audit_warning_shown = True
             self._append_system(
-                "警告：审计日志不可用：{}".format(
-                    self.audit.last_error or "未知错误"
+                tr(
+                    "error.audit_unavailable",
+                    detail=self.audit.last_error or tr("error.unknown"),
                 )
             )
 
-    def _confirm(self, title, text, accept_text="确认"):
+    def _confirm(self, title, text, accept_text=None):
         message = QtWidgets.QMessageBox(self)
         message.setIcon(QtWidgets.QMessageBox.Warning)
         message.setWindowTitle(title)
         message.setText(text)
         message.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         message.setDefaultButton(QtWidgets.QMessageBox.No)
-        message.button(QtWidgets.QMessageBox.Yes).setText(accept_text)
-        message.button(QtWidgets.QMessageBox.No).setText("取消")
+        message.button(QtWidgets.QMessageBox.Yes).setText(
+            accept_text or tr("button.confirm")
+        )
+        message.button(QtWidgets.QMessageBox.No).setText(tr("button.cancel"))
         return message.exec_() == QtWidgets.QMessageBox.Yes
 
     def _turn_failed(self, _message):
@@ -1490,7 +1533,7 @@ class CodexDialog(QtWidgets.QDialog):
 
     def _show_error(self, text):
         self.status_label.setText(text)
-        self._append_system("错误：" + text)
+        self._append_system(tr("error.prefix", detail=text))
         if self.client is not None and not self.client.thread_id:
             self._set_ready(False)
             self._set_codex_selector_visible(True, retry=True)
@@ -1511,7 +1554,10 @@ class CodexDialog(QtWidgets.QDialog):
         ):
             return
         self._append_system(
-            "Codex 启动诊断：" + diagnostic_summary(self._last_diagnostic)
+            tr(
+                "diagnostic.startup",
+                detail=diagnostic_summary(self._last_diagnostic),
+            )
         )
         self._displayed_diagnostic_fingerprint = self._last_diagnostic_fingerprint
 

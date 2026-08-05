@@ -102,7 +102,7 @@ def __init_plugin__(app=None):
     from pymol import cmd
     from pymol.plugins import addmenuitemqt
 
-    addmenuitemqt("PyMOL Codex 助手", open_dialog)
+    addmenuitemqt("Codex for PyMOL", open_dialog)
     cmd.extend("codex_chat", open_dialog)
     _schedule_auto_open()
 

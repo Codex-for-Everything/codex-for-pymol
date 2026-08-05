@@ -14,12 +14,37 @@ from codex_for_pymol.discovery import (
     discover_codex_features,
     feature_invocation,
     find_codex,
+    is_supported_launcher,
     parse_feature_list,
     process_invocation,
 )
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_windows_rejects_unsupported_launcher_types(self):
+        for path in ("codex", "codex.js", "codex.ps1", "codex.py"):
+            with self.subTest(path=path):
+                self.assertFalse(is_supported_launcher(path, windows=True))
+        for path in ("codex.exe", "codex.cmd", "codex.BAT"):
+            with self.subTest(path=path):
+                self.assertTrue(is_supported_launcher(path, windows=True))
+
+    def test_invalid_configured_launcher_falls_back_to_valid_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            invalid = Path(directory) / "codex.ps1"
+            valid = Path(directory) / "codex.cmd"
+            invalid.write_text("", encoding="utf-8")
+            valid.write_text("", encoding="utf-8")
+            valid.chmod(0o700)
+            with mock.patch(
+                "codex_for_pymol.discovery.candidate_paths",
+                return_value=[str(valid)],
+            ), mock.patch(
+                "codex_for_pymol.discovery.is_supported_launcher",
+                side_effect=lambda path: str(path).endswith(".cmd"),
+            ):
+                self.assertEqual(find_codex(str(invalid)), str(valid))
+
     def test_project_named_environment_variable_is_preferred(self):
         configured = "/configured/codex"
         with mock.patch.dict(

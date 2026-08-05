@@ -261,6 +261,13 @@ def run_test():
             dialog.action_row.spacing() == 6,
             "real action controls are still packed too tightly",
         )
+        # Dock creation briefly fixes the compact initial height so PyMOL
+        # opens with exactly four transcript lines. Exercise user resizing
+        # only after that documented 100 ms initialization window has ended.
+        release_wait = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(150, release_wait.quit)
+        release_wait.exec_()
+        QtWidgets.QApplication.processEvents()
         dialog.transcript.setPlainText(
             "\n".join("message {}".format(index) for index in range(100))
         )

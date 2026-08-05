@@ -4,6 +4,7 @@ import os
 
 from pymol.Qt import QtCore, QtGui, QtWidgets
 
+from .i18n import text
 from .ui import CodexDialog
 
 
@@ -179,7 +180,7 @@ def create_codex_dock(main_window, dialog_class=CodexDialog):
         existing.raise_()
         return existing, existing.widget()
 
-    dock = QtWidgets.QDockWidget("Codex 助手", main_window)
+    dock = QtWidgets.QDockWidget(text("app.dock_title"), main_window)
     dock.setObjectName(DOCK_OBJECT_NAME)
     dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
     dock.setFeatures(QtWidgets.QDockWidget.NoDockWidgetFeatures)
@@ -189,6 +190,10 @@ def create_codex_dock(main_window, dialog_class=CodexDialog):
     dock.setTitleBarWidget(hidden_title_bar)
 
     dialog = dialog_class(dock)
+    dock.setWindowTitle(text("app.dock_title"))
+    language_changed = getattr(dialog, "language_changed", None)
+    if language_changed is not None:
+        language_changed.connect(dock.setWindowTitle)
     dialog.setWindowFlags(QtCore.Qt.Widget)
     dialog.setSizePolicy(
         QtWidgets.QSizePolicy.Expanding,
@@ -205,7 +210,6 @@ def create_codex_dock(main_window, dialog_class=CodexDialog):
 
     console_dock = find_console_dock(main_window)
     if console_dock is not None and console_dock is not dock:
-        console_dock.setWindowTitle("PyMOL 控制台")
         console_dock.show()
         main_window.tabifyDockWidget(console_dock, dock)
         if hasattr(main_window, "setTabPosition"):

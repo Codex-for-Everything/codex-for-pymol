@@ -1,5 +1,7 @@
 """Dynamic tool specifications and Codex instructions."""
 
+from .i18n import text as tr
+
 
 INSPECT_SCHEMA = {
     "type": "object",
@@ -170,8 +172,8 @@ def python_mode_context(enabled):
             "Unrestricted Python is currently DISABLED. First exhaust pymol_inspect, "
             "pymol_apply, and pymol_snapshot. Do not call pymol_python_exec. If the "
             "task truly cannot be completed with controlled tools, stop and tell the "
-            "user to enable “启用不受限 Python（高风险）” in the PyMOL plugin, then "
-            "resend the request."
+            "user to enable the plugin option labelled “{}”, then resend the request."
+            .format(tr("python.enable"))
         )
     return {
         "codex_for_pymol_python_mode": {

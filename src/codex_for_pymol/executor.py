@@ -12,6 +12,7 @@ import traceback
 import uuid
 from pathlib import Path
 
+from .i18n import text
 from .serializer import to_jsonable
 
 
@@ -97,11 +98,11 @@ def action_risk(operations):
     """Return a human-readable risk description or ``None``."""
     actions = {item.get("action") for item in operations if isinstance(item, dict)}
     if "load" in actions and "fetch" in actions:
-        return "读取本地文件并从网络下载结构"
+        return text("risk.local_and_network")
     if "load" in actions:
-        return "读取本地结构文件"
+        return text("risk.local")
     if "fetch" in actions:
-        return "从网络下载结构"
+        return text("risk.network")
     return None
 
 

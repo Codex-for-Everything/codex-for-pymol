@@ -1,17 +1,20 @@
 """User-facing presentation helpers."""
 
 
-TOOL_DISPLAY_NAMES = {
-    "pymol_inspect": "读取 PyMOL 状态",
-    "pymol_apply": "修改 PyMOL 场景",
-    "pymol_snapshot": "获取 PyMOL 截图",
-    "pymol_python_exec": "执行不受限 Python",
+from .i18n import text
+
+
+TOOL_DISPLAY_KEYS = {
+    "pymol_inspect": "tool.inspect",
+    "pymol_apply": "tool.apply",
+    "pymol_snapshot": "tool.snapshot",
+    "pymol_python_exec": "tool.python",
 }
 
 
 def chat_prefix(role):
     """Return the shared role prefix used for complete and streaming messages."""
-    return "{}：".format(role)
+    return text("chat.prefix", role=role)
 
 
 def chat_block(role, text):
@@ -21,4 +24,5 @@ def chat_block(role, text):
 
 def tool_display_name(tool):
     """Return a localized tool label while preserving unknown identifiers."""
-    return TOOL_DISPLAY_NAMES.get(tool, tool or "PyMOL")
+    key = TOOL_DISPLAY_KEYS.get(tool)
+    return text(key) if key else tool or "PyMOL"

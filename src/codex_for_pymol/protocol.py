@@ -4,6 +4,8 @@ import codecs
 import json
 import re
 
+from .i18n import text as tr
+
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 ISO_8601_TIMESTAMP = re.compile(
@@ -57,11 +59,11 @@ def diagnostic_summary(value):
         "failed to refresh available models: "
         "timeout waiting for child process to exit"
     ):
-        return "刷新可用模型列表超时（后台进程未按时退出）。"
+        return tr("protocol.model_timeout")
     if normalized == "request timed out":
-        return "请求超时。"
+        return tr("protocol.request_timeout")
     if not text:
-        return "Codex 后台进程报告了未提供详情的错误。"
+        return tr("protocol.no_detail")
     if len(text) > 500:
         text = text[:499].rstrip() + "…"
     return text
@@ -95,10 +97,10 @@ def error_message(value):
             return str(message)
         code = value.get("code")
         if code is not None:
-            return "错误代码 {}".format(code)
-        return "Codex 返回了未提供详情的错误"
+            return tr("protocol.error_code", code=code)
+        return tr("protocol.error_unknown")
     text = str(value or "").strip()
-    return text or "Codex 返回了未提供详情的错误"
+    return text or tr("protocol.error_unknown")
 
 
 def is_active_tool_call(params, active_thread, active_turn):
@@ -162,15 +164,15 @@ def validated_ephemeral_thread_id(result):
     part of the privacy boundary and must explicitly confirm the property.
     """
     if not isinstance(result, dict):
-        raise ValueError("Codex 没有返回有效的对话结果")
+        raise ValueError(tr("protocol.thread_result"))
     thread = result.get("thread")
     if not isinstance(thread, dict):
-        raise ValueError("Codex 没有返回有效的对话信息")
+        raise ValueError(tr("protocol.thread_info"))
     thread_id = thread.get("id")
     if not isinstance(thread_id, str) or not thread_id.strip():
-        raise ValueError("Codex 没有返回有效的对话 ID")
+        raise ValueError(tr("protocol.thread_id"))
     if thread.get("ephemeral") is not True:
-        raise ValueError("当前 Codex 未确认该对话不会保存到历史记录")
+        raise ValueError(tr("protocol.thread_ephemeral"))
     return thread_id
 
 

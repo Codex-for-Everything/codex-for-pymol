@@ -142,8 +142,14 @@ def require_button_palette(widget, expected_palette, context):
                 require(
                     button.palette().brush(group, role)
                     == expected_palette.brush(group, role),
-                    "{} button colors do not match the platform theme policy".format(
-                        context
+                    "{} button {!r} colors do not match the platform theme policy "
+                    "(group={}, role={}, actual={}, expected={})".format(
+                        context,
+                        button.text(),
+                        int(group),
+                        int(role),
+                        button.palette().color(group, role).name(),
+                        expected_palette.color(group, role).name(),
                     ),
                 )
 
@@ -159,7 +165,10 @@ def main():
         QtCore.QSettings.IniFormat,
     )
     dialog.settings.clear()
-    dialog._update_model_settings_button()
+    dialog.preferences = ui.PreferenceStore(dialog.settings, "zh_CN")
+    dialog.preferences.set_language(ui.ZH_CN)
+    ui.set_locale(ui.ZH_CN)
+    dialog._retranslate_ui()
     require(dialog.windowTitle() == "PyMOL Codex 助手", "window title is not localized")
     require(dialog.status_label.text() == "尚未连接", "status is not localized")
     require(dialog.choose_button.text() == "选择 Codex…", "chooser is not localized")
@@ -175,8 +184,8 @@ def main():
     require(dialog.stop_button.text() == "停止", "stop button is not localized")
     require(dialog.new_button.text() == "新建对话", "new button is not localized")
     require(
-        dialog.model_settings_button.text() == "模型设置…",
-        "model settings button is not localized",
+        dialog.model_settings_button.text() == "设置…",
+        "settings button is not localized",
     )
     require(
         dialog.undo_button.text() == "撤销最新一轮的修改",
@@ -190,6 +199,22 @@ def main():
         dialog.python_checkbox.text() == "启用不受限 Python（高风险）",
         "Python warning is not localized",
     )
+    dialog.preferences.set_language(ui.EN)
+    ui.set_locale(ui.EN)
+    dialog._retranslate_ui()
+    require(
+        dialog.windowTitle() == "Codex for PyMOL"
+        and dialog.status_label.text() == "Not connected"
+        and dialog.choose_button.text() == "Choose another Codex…"
+        and dialog.send_button.text() == "Send"
+        and dialog.model_settings_button.text() == "Settings…"
+        and dialog.python_checkbox.text()
+        == "Enable unrestricted Python (high risk)",
+        "switching to English did not retranslate persistent controls",
+    )
+    dialog.preferences.set_language(ui.ZH_CN)
+    ui.set_locale(ui.ZH_CN)
+    dialog._retranslate_ui()
     python_warning = []
     original_confirm = dialog._confirm
     dialog._confirm = (
@@ -1355,8 +1380,8 @@ def main():
         "Codex is not tabified with the PyMOL console",
     )
     require(
-        console_dock.windowTitle() == "PyMOL 控制台",
-        "console tab is not localized",
+        console_dock.windowTitle() == "External GUI",
+        "creating the Codex dock unexpectedly renamed the native console tab",
     )
     require(
         not (codex_dock.features() & QtWidgets.QDockWidget.DockWidgetFloatable),

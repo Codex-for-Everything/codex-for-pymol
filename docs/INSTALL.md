@@ -4,8 +4,8 @@
 
 [Back to the project overview](../README.md)
 
-> The current plugin interface is in Simplified Chinese. This guide includes
-> the exact Chinese labels shown in PyMOL.
+The interface supports English and Simplified Chinese. On first use it follows
+the operating-system language. Open **Settings…** to change it later.
 
 > **Windows upgrade notice:** Versions 0.3.2 and earlier contain
 > Windows-specific bugs that can make button text nearly invisible and prevent
@@ -76,7 +76,7 @@ Windows example:
 $env:CODEX_FOR_PYMOL_EXECUTABLE = "C:\Tools\codex.exe"
 ```
 
-You can also choose the executable later with **选择 Codex…**.
+You can also choose the executable later with **Choose Codex…**.
 
 ## 2. Install the plugin
 
@@ -118,11 +118,11 @@ same way as a release zip.
 
 ## 3. Start your first conversation
 
-After PyMOL restarts, **Codex 助手** should open automatically at the bottom
-of the main window beside **PyMOL 控制台**. If it does not, use:
+After PyMOL restarts, **Codex Assistant** should open automatically at the
+bottom of the main window beside the PyMOL console. If it does not, use:
 
 ```text
-Plugin → PyMOL Codex 助手
+Plugin → Codex for PyMOL
 ```
 
 or enter this PyMOL command:
@@ -134,7 +134,7 @@ codex_chat
 Older PyMOL builds that do not expose a compatible main window may show a
 separate Codex window instead of an embedded tab.
 
-Every PyMOL launch starts a new Codex conversation. Use **新建对话** when you
+Every PyMOL launch starts a new Codex conversation. Use **New conversation** when you
 want another clean conversation without restarting PyMOL.
 
 Try a read-only request first:
@@ -158,12 +158,12 @@ structure file.
 
 | Control | Purpose |
 | --- | --- |
-| **发送** | Send the message |
-| **停止** | Ask Codex to stop the current turn |
-| **新建对话** | Start a clean conversation |
-| **模型设置…** | Change model, reasoning effort, or response speed |
-| **启用不受限 Python（高风险）** | Allow separately approved Python code |
-| **撤销最新一轮的修改** | Restore the latest available PyMOL undo point |
+| **Send** | Send the message |
+| **Stop** | Ask Codex to stop the current turn |
+| **New conversation** | Start a clean conversation |
+| **Settings…** | Change language, model, reasoning effort, or response speed |
+| **Enable unrestricted Python (high risk)** | Allow separately approved Python code |
+| **Undo the latest turn's changes** | Restore the latest available PyMOL undo point |
 
 - `Enter`: send;
 - `Ctrl+Enter` or `Shift+Enter`: insert a line break;
@@ -176,17 +176,18 @@ bottom. In the embedded panel, colors, fonts, and scrollbars follow the PyMOL
 console.
 
 The status line shows whether Codex is connecting, ready, working, retrying,
-or waiting for an action. The **停止** and **模型设置…** buttons are enabled
+or waiting for an action. The **Stop** and **Settings…** buttons are enabled
 only when they can safely be used.
 
 ## 5. Model settings
 
-Open **模型设置…** to choose a model, reasoning effort, and response speed.
+Open **Settings…** to choose the interface language, model, reasoning effort,
+and response speed.
 The choices come from the current Codex account and selected model; the plugin
 does not contain a fixed model list.
 
-Real defaults are marked **（默认）**. Baseline response speed appears as
-**标准（默认）**; extra options such as Fast appear only when Codex reports
+Real defaults are marked **(default)**. Baseline response speed appears as
+**Standard (default)**; extra options such as Fast appear only when Codex reports
 them. The reasoning and speed selectors are disabled when they contain only
 one choice.
 
@@ -196,13 +197,13 @@ current Codex account. An option that is no longer available is replaced by
 the current default. If the list cannot be loaded, conversations can continue
 with Codex defaults.
 
-Use **刷新模型列表** to retry loading the list. It is normal for
-**模型设置…** to be disabled while Codex is working.
+Use **Refresh model list** to retry loading the list. It is normal for
+**Settings…** to be disabled while Codex is working.
 
 ## 6. Unrestricted Python and undo
 
 Normal PyMOL work should use the controlled tools. Enable
-**启用不受限 Python（高风险）** only when those tools cannot complete the
+**Enable unrestricted Python (high risk)** only when those tools cannot complete the
 task.
 
 Unrestricted Python runs inside PyMOL with your operating-system permissions.
@@ -215,7 +216,7 @@ If Codex requests unrestricted Python while the switch is off, the plugin
 rejects it and asks Codex to stop. Enable the switch and resend only if you
 understand the risk and the controlled tools are insufficient.
 
-The switch turns off automatically when you switch to **PyMOL 控制台**, hide
+The switch turns off automatically when you switch to the PyMOL console, hide
 or close the Codex panel, replace or lose the Codex background process, or
 exit PyMOL.
 
@@ -223,7 +224,7 @@ Before a user request first changes PyMOL, the plugin saves one `.pse` undo
 point. All controlled changes and approved Python in that request share the
 same point. Read-only requests do not create one.
 
-**撤销最新一轮的修改** restores the newest available point. You can continue
+**Undo the latest turn's changes** restores the newest available point. You can continue
 undoing older modifying requests while their points remain. At most five are
 kept for the current PyMOL process. Undo cannot restore ordinary files,
 network activity, packages, or external programs, and its history does not

@@ -8,10 +8,13 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+from .i18n import text as tr
+
 
 FEATURE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 FEATURE_DISCOVERY_TIMEOUT_SECONDS = 10
 WINDOWS_LAUNCHER_ENV = "CODEX_FOR_PYMOL_WINDOWS_LAUNCHER"
+WINDOWS_LAUNCHER_SUFFIXES = frozenset((".exe", ".cmd", ".bat"))
 ENABLED_APP_SERVER_FEATURES = frozenset(("respect_system_proxy",))
 PASSTHROUGH_APP_SERVER_FEATURES = frozenset(
     (
@@ -101,9 +104,21 @@ def find_codex(configured=None):
         if not value:
             continue
         path = Path(value).expanduser()
+        if not is_supported_launcher(path):
+            continue
         if path.is_file() and (os.name == "nt" or os.access(str(path), os.X_OK)):
             return str(path)
     return None
+
+
+def is_supported_launcher(path, windows=None):
+    """Return whether *path* has a launcher form supported on this platform."""
+    if windows is None:
+        windows = os.name == "nt"
+    if windows:
+        suffix = os.path.splitext(os.fspath(path))[1].lower()
+        return suffix in WINDOWS_LAUNCHER_SUFFIXES
+    return True
 
 
 def _command_invocation(executable, arguments):
@@ -184,11 +199,7 @@ def app_server_arguments(executable, available_features=None):
         available_features = discover_codex_features(executable)
     available_features = set(available_features or ())
     if not available_features:
-        raise CodexFeatureDiscoveryError(
-            "无法读取当前 Codex 的功能列表，已停止启动以避免意外开放"
-            "命令行等无关能力。请确认该可执行文件支持 "
-            "“codex features list”，或升级后重新选择 Codex。"
-        )
+        raise CodexFeatureDiscoveryError(tr("discovery.features_failed"))
     arguments = ["app-server", "--stdio"]
     for feature in sorted(available_features):
         if feature in ENABLED_APP_SERVER_FEATURES:

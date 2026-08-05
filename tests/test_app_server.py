@@ -32,7 +32,7 @@ def _load_app_server_without_pymol():
 
     qt_core = types.SimpleNamespace(
         QObject=object,
-        QProcess=types.SimpleNamespace(NotRunning=0),
+        QProcess=types.SimpleNamespace(NotRunning=0, NormalExit=0),
         QTimer=_Timer,
         Signal=lambda *_args: _Signal(),
         pyqtSignal=lambda *_args: _Signal(),
@@ -109,6 +109,33 @@ class AppServerThreadTests(unittest.TestCase):
             _Timer.callbacks[0][0],
             app_server.FEATURE_DISCOVERY_TIMEOUT_SECONDS * 1000,
         )
+
+    def test_feature_probe_failure_names_launcher_and_bounded_stderr(self):
+        client = object.__new__(app_server.AppServerClient)
+        client.executable = "C:\\Users\\Test\\AppData\\Roaming\\npm\\codex.cmd"
+        client._closing = False
+        client._feature_probe_active = True
+        client._feature_probe_generation = 1
+        client.feature_process = mock.Mock()
+        client.feature_process.state.return_value = (
+            app_server.QtCore.QProcess.NotRunning
+        )
+        client.feature_process.readAllStandardError.return_value = (
+            b"npm launcher failed\n" + b"x" * 2000
+        )
+        client.error = _Signal()
+        client.stopped = _Signal()
+
+        client._feature_process_finished(
+            1,
+            app_server.QtCore.QProcess.NormalExit,
+        )
+
+        error = client.error.values[0][0]
+        self.assertIn(client.executable, error)
+        self.assertIn("npm launcher failed", error)
+        self.assertLess(len(error), 1400)
+        self.assertEqual(client.stopped.values, [()])
 
     def test_new_thread_requests_an_ephemeral_least_privilege_session(self):
         client = _client(generation=8)

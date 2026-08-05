@@ -15,8 +15,9 @@ product.
 > automation were developed in collaboration with Codex and reviewed through
 > the validation described in this repository.
 
-> The current plugin interface is in Simplified Chinese. This English guide
-> shows the exact Chinese button labels so they are easy to find.
+The interface supports English and Simplified Chinese. On first use it follows
+the operating-system language; you can change it at any time under
+**Settings… → Interface language**.
 
 Detailed guide: [English](docs/INSTALL.md) | [简体中文](docs/INSTALL.zh-CN.md)
 
@@ -63,8 +64,8 @@ The plugin does not install extra Python packages into PyMOL.
    ```
 
 3. Select the zip and restart PyMOL.
-4. The **Codex 助手** tab should open automatically beside
-   **PyMOL 控制台** at the bottom of the main window.
+4. The **Codex Assistant** (or **Codex 助手**) tab should open automatically
+   beside the PyMOL console at the bottom of the main window.
 5. Type a request and press `Enter`.
 
 > Upgrading from 0.2.x or earlier: uninstall the old plugin in PyMOL's Plugin
@@ -74,7 +75,7 @@ The plugin does not install extra Python packages into PyMOL.
 If the panel does not open, select:
 
 ```text
-Plugin → PyMOL Codex 助手
+Plugin → Codex for PyMOL
 ```
 
 You can also enter `codex_chat` in the PyMOL command line. See the
@@ -84,12 +85,12 @@ You can also enter `codex_chat` in the PyMOL command line. See the
 
 | Control | Purpose |
 | --- | --- |
-| **发送** | Send the current message |
-| **停止** | Ask Codex to stop the current turn |
-| **新建对话** | Clear the transcript and start a fresh Codex conversation |
-| **模型设置…** | Choose from the models and options returned by the current Codex account |
-| **启用不受限 Python（高风险）** | Allow separately approved Python code to run inside PyMOL |
-| **撤销最新一轮的修改** | Restore PyMOL to before the latest user request that changed it |
+| **Send** | Send the current message |
+| **Stop** | Ask Codex to stop the current turn |
+| **New conversation** | Clear the transcript and start a fresh Codex conversation |
+| **Settings…** | Change the interface language and choose options returned by the current Codex account |
+| **Enable unrestricted Python (high risk)** | Allow separately approved Python code to run inside PyMOL |
+| **Undo the latest turn's changes** | Restore PyMOL to before the latest user request that changed it |
 
 `Enter` sends. `Ctrl+Enter` or `Shift+Enter` inserts a line break. Pressing
 `Esc` in the main panel does not close it.
@@ -120,7 +121,7 @@ the empty record instead of silently adding it to Codex history.
 
 PyMOL asks before Codex downloads a structure or reads a local structure file.
 
-**启用不受限 Python（高风险）** is different. Approved code runs inside the
+**Enable unrestricted Python (high risk)** is different. Approved code runs inside the
 PyMOL process with your operating-system permissions. It may read or change
 files, access the network, start programs, crash PyMOL, or become impossible
 to interrupt. Enabling the switch requires a warning confirmation, and every
@@ -129,7 +130,7 @@ the Codex panel—or replacing or losing the Codex background process—disables
 the switch automatically.
 
 Before a user request first changes PyMOL, the plugin saves a `.pse` undo
-point. **撤销最新一轮的修改** can restore PyMOL session state, but it cannot
+point. **Undo the latest turn's changes** can restore PyMOL session state, but it cannot
 undo files, downloads, network activity, installed packages, or external
 programs.
 
