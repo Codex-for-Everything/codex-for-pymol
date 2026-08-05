@@ -154,6 +154,37 @@ def require_button_palette(widget, expected_palette, context):
                 )
 
 
+def require_combo_palette(widget, expected_palette, context):
+    combos = widget.findChildren(QtWidgets.QComboBox)
+    require(combos, "{} has no combo boxes to verify".format(context))
+    for combo in combos:
+        for group in (
+            QtGui.QPalette.Active,
+            QtGui.QPalette.Inactive,
+            QtGui.QPalette.Disabled,
+        ):
+            for role in (
+                QtGui.QPalette.Base,
+                QtGui.QPalette.Text,
+                QtGui.QPalette.Button,
+                QtGui.QPalette.ButtonText,
+                QtGui.QPalette.Highlight,
+                QtGui.QPalette.HighlightedText,
+            ):
+                require(
+                    combo.palette().brush(group, role)
+                    == expected_palette.brush(group, role),
+                    "{} combo colors do not match the native control palette "
+                    "(group={}, role={}, actual={}, expected={})".format(
+                        context,
+                        int(group),
+                        int(role),
+                        combo.palette().color(group, role).name(),
+                        expected_palette.color(group, role).name(),
+                    ),
+                )
+
+
 def main():
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     ui.AuditLogger = NullAuditLogger
@@ -1502,6 +1533,11 @@ def main():
     require_button_palette(
         themed_model_dialog,
         expected_button_palette,
+        "model settings dialog",
+    )
+    require_combo_palette(
+        themed_model_dialog,
+        app.style().standardPalette(),
         "model settings dialog",
     )
     themed_approval = ui.PythonApprovalDialog(

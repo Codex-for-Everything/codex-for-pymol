@@ -235,7 +235,7 @@ class ModelSettingsDialog(QtWidgets.QDialog):
         self.set_catalog(catalog, catalog_error)
 
     def apply_host_palette(self, palette):
-        """Apply a complete host palette, including native macOS labels."""
+        """Apply the host palette without recoloring native combo surfaces."""
         palette = QtGui.QPalette(palette)
         self.setPalette(palette)
         foreground = palette.color(
@@ -255,6 +255,20 @@ class ModelSettingsDialog(QtWidgets.QDialog):
         )
         for widget in self.findChildren(QtWidgets.QWidget):
             widget.setPalette(palette)
+
+        # macOS paints QComboBox with a native light surface even when its
+        # parent uses PyMOL's dark console palette. Keeping the console's light
+        # Text role on that native surface makes enabled and disabled values
+        # nearly invisible. Use the active Qt style's complete control palette
+        # for combo boxes while labels and the dialog background continue to
+        # follow PyMOL. This also keeps Windows native controls internally
+        # consistent instead of mixing host text with system-drawn surfaces.
+        application = QtWidgets.QApplication.instance()
+        style = application.style() if application is not None else None
+        if style is not None:
+            control_palette = style.standardPalette()
+            for combo in self.findChildren(QtWidgets.QComboBox):
+                combo.setPalette(control_palette)
 
     def _request_refresh(self):
         self.refresh_button.setEnabled(False)
