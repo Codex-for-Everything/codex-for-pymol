@@ -93,7 +93,7 @@ class I18nTests(unittest.TestCase):
                 continue
             has_chinese = any(
                 "\u4e00" <= character <= "\u9fff"
-                for character in path.read_text()
+                for character in path.read_text(encoding="utf-8")
             )
             if has_chinese:
                 offenders.append(path.name)

@@ -56,7 +56,8 @@ class DiscoveryTests(unittest.TestCase):
 
     def test_explicit_executable_wins(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "codex"
+            launcher_name = "codex.exe" if os.name == "nt" else "codex"
+            path = Path(directory) / launcher_name
             path.write_text("", encoding="utf-8")
             if os.name != "nt":
                 path.chmod(0o700)
