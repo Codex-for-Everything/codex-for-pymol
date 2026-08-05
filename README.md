@@ -15,9 +15,9 @@ product.
 > automation were developed in collaboration with Codex and reviewed through
 > the validation described in this repository.
 
-The interface supports English and Simplified Chinese. On first use it follows
-the operating-system language; you can change it at any time under
-**Settings… → Interface language**.
+The interface supports English and Simplified Chinese. On first use it uses
+Simplified Chinese for a Chinese system locale and English otherwise; you can
+change it at any time under **Settings… → Interface language**.
 
 Detailed guide: [English](docs/INSTALL.md) | [简体中文](docs/INSTALL.zh-CN.md)
 

@@ -56,6 +56,10 @@ def _is_list_item(line):
 
 
 class DocumentationTests(unittest.TestCase):
+    @unittest.skipUnless(
+        (ROOT / ".github" / "workflows").is_dir(),
+        "GitHub workflows are intentionally absent from source distributions",
+    )
     def test_workflows_use_node24_action_generations(self):
         workflows = "\n".join(
             path.read_text(encoding="utf-8")
@@ -124,6 +128,42 @@ class DocumentationTests(unittest.TestCase):
             with self.subTest(path=path.relative_to(ROOT)):
                 self.assertIn("必须安装独立的 [Codex CLI]", text)
                 self.assertIn("Contents/Resources/codex", text)
+
+    def test_language_and_model_setting_timing_matches_the_ui(self):
+        for path in (ROOT / "README.md", ROOT / "docs" / "INSTALL.md"):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("Chinese system locale", text)
+                self.assertIn("English otherwise", text)
+
+        install_en = (ROOT / "docs" / "INSTALL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "Interface-language changes apply as soon as you save",
+            install_en,
+        )
+        self.assertIn(
+            "response-speed changes take effect on the next message",
+            install_en,
+        )
+
+        for path in (
+            ROOT / "docs" / "README.zh-CN.md",
+            ROOT / "docs" / "INSTALL.zh-CN.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("中文系统使用简体中文，其他系统使用英文", text)
+
+        install_zh = (ROOT / "docs" / "INSTALL.zh-CN.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("界面语言在保存后立即生效", install_zh)
+        self.assertIn(
+            "模型、推理强度和响应速度从下一条消息开始生效",
+            install_zh,
+        )
 
     def test_windows_upgrade_notice_names_fixed_version(self):
         for path in INSTALL_DOCS:

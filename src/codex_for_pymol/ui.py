@@ -290,6 +290,10 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             selected = self.current_settings()
         else:
             selected = self._initial_settings
+        # Keep the last meaningful selection while a refresh temporarily has
+        # no usable catalog. Saving a language-only change must not erase the
+        # user's previously validated model preferences.
+        self._initial_settings = selected
 
         # Rebuilding native combo boxes one item at a time makes a visible
         # modal dialog repaint and recalculate its layout repeatedly on macOS.
@@ -331,6 +335,12 @@ class ModelSettingsDialog(QtWidgets.QDialog):
             finally:
                 self.model_combo.blockSignals(False)
             self._populate_model_options(effort, service_tier)
+            if self._models_by_value:
+                self._initial_settings = (
+                    str(self.model_combo.currentData() or ""),
+                    str(self.effort_combo.currentData() or ""),
+                    str(self.service_tier_combo.currentData() or ""),
+                )
 
             self.refresh_button.setText(tr("settings.refresh"))
             self.refresh_button.setEnabled(True)
@@ -444,6 +454,8 @@ class ModelSettingsDialog(QtWidgets.QDialog):
         self.service_tier_combo.blockSignals(False)
 
     def current_settings(self):
+        if not self._models_by_value:
+            return self._initial_settings
         return (
             str(self.model_combo.currentData() or ""),
             str(self.effort_combo.currentData() or ""),
@@ -511,6 +523,7 @@ class CodexDialog(QtWidgets.QDialog):
         self._model_catalog = []
         self._model_catalog_validated = False
         self._model_catalog_error = ""
+        self._model_catalog_error_key = ""
         self._model_settings_dialog = None
         self._codex_selector_retry = False
         self._turn_checkpoint_key = None
@@ -735,10 +748,11 @@ class CodexDialog(QtWidgets.QDialog):
         self.client.stopped.connect(self._client_stopped)
         self.client.model_catalog.connect(self._set_model_catalog)
         self.client.model_catalog_error.connect(
-            self._model_catalog_failed
+            self._backend_model_catalog_failed
         )
         self._model_catalog = []
         self._model_catalog_validated = False
+        self._model_catalog_error_key = "settings.fetching"
         self._model_catalog_error = tr("settings.fetching")
         self.client.start()
 
@@ -833,7 +847,14 @@ class CodexDialog(QtWidgets.QDialog):
         self._set_turn_active()
 
     def _stop(self):
-        if self.client and self.client.interrupt():
+        if not self.client:
+            return
+        try:
+            requested = self.client.interrupt()
+        except Exception as exc:
+            self._show_error(tr("error.stop_turn", detail=exc))
+            return
+        if requested:
             self._append_system(
                 tr("system.stop_requested")
             )
@@ -841,14 +862,21 @@ class CodexDialog(QtWidgets.QDialog):
     def _new_thread(self):
         if not self.client:
             return
-        if self.client.turn_id:
-            self.client.interrupt()
+        try:
+            if self.client.turn_id:
+                self.client.interrupt()
+            self.client.new_thread()
+        except Exception as exc:
+            self._set_ready(False)
+            self._show_error(
+                tr("backend.new_thread_failed", detail=exc)
+            )
+            return
         self._set_ready(False)
         self._tool_response_cache.clear()
         self._turn_checkpoint_key = None
         self._turn_checkpoint_path = None
         self.transcript.clear()
-        self.client.new_thread()
 
     def _saved_model_settings(self):
         return self.preferences.model_settings()
@@ -869,6 +897,7 @@ class CodexDialog(QtWidgets.QDialog):
         ]
         self._model_catalog_validated = True
         self._model_catalog_error = ""
+        self._model_catalog_error_key = ""
         self._normalize_saved_model_settings()
         self._update_model_settings_button()
         if self._model_settings_dialog is not None:
@@ -877,8 +906,12 @@ class CodexDialog(QtWidgets.QDialog):
                 "",
             )
 
-    def _model_catalog_failed(self, message):
+    def _backend_model_catalog_failed(self, message):
+        self._model_catalog_failed(message, "backend.model_failed")
+
+    def _model_catalog_failed(self, message, translation_key=""):
         self._model_catalog_error = str(message)
+        self._model_catalog_error_key = str(translation_key)
         if self._model_settings_dialog is not None:
             self._model_settings_dialog.set_catalog(
                 self._model_catalog,
@@ -934,12 +967,18 @@ class CodexDialog(QtWidgets.QDialog):
 
     def _refresh_model_catalog(self):
         if self.client is None:
-            self._model_catalog_failed(tr("settings.not_connected"))
+            self._model_catalog_failed(
+                tr("settings.not_connected"),
+                "settings.not_connected",
+            )
             return
         try:
             self.client.refresh_models()
         except Exception:
-            self._model_catalog_failed(tr("settings.refresh_failed"))
+            self._model_catalog_failed(
+                tr("settings.refresh_failed"),
+                "settings.refresh_failed",
+            )
 
     def _open_model_settings(self):
         model, effort, service_tier = self._saved_model_settings()
@@ -1022,6 +1061,10 @@ class CodexDialog(QtWidgets.QDialog):
 
     def _retranslate_ui(self):
         """Refresh every persistent control after a language change."""
+        if self._model_catalog_error_key:
+            self._model_catalog_error = tr(
+                self._model_catalog_error_key
+            )
         self.setWindowTitle(tr("app.window_title"))
         self.transcript.setPlaceholderText(tr("transcript.placeholder"))
         self.input.setPlaceholderText(tr("input.placeholder"))

@@ -4,8 +4,9 @@
 
 [Back to the project overview](../README.md)
 
-The interface supports English and Simplified Chinese. On first use it follows
-the operating-system language. Open **Settings…** to change it later.
+The interface supports English and Simplified Chinese. On first use it uses
+Simplified Chinese for a Chinese system locale and English otherwise. Open
+**Settings…** to change it later.
 
 > **Windows upgrade notice:** Versions 0.3.2 and earlier contain
 > Windows-specific bugs that can make button text nearly invisible and prevent
@@ -191,11 +192,12 @@ Real defaults are marked **(default)**. Baseline response speed appears as
 them. The reasoning and speed selectors are disabled when they contain only
 one choice.
 
-Settings take effect on the next message. They are saved locally, but after
-every PyMOL launch the plugin first checks them against a fresh list from the
-current Codex account. An option that is no longer available is replaced by
-the current default. If the list cannot be loaded, conversations can continue
-with Codex defaults.
+Interface-language changes apply as soon as you save. Model, reasoning-effort,
+and response-speed changes take effect on the next message. Settings are saved
+locally, but after every PyMOL launch the plugin first checks the model-related
+choices against a fresh list from the current Codex account. An option that is
+no longer available is replaced by the current default. If the list cannot be
+loaded, conversations can continue with Codex defaults.
 
 Use **Refresh model list** to retry loading the list. It is normal for
 **Settings…** to be disabled while Codex is working.
@@ -216,9 +218,9 @@ If Codex requests unrestricted Python while the switch is off, the plugin
 rejects it and asks Codex to stop. Enable the switch and resend only if you
 understand the risk and the controlled tools are insufficient.
 
-The switch turns off automatically when you switch to the PyMOL console, hide
-or close the Codex panel, replace or lose the Codex background process, or
-exit PyMOL.
+The switch turns off automatically when you switch away from the Codex tab,
+hide or close the Codex panel, replace or lose the Codex background process,
+or exit PyMOL.
 
 Before a user request first changes PyMOL, the plugin saves one `.pse` undo
 point. All controlled changes and approved Python in that request share the

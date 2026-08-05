@@ -410,14 +410,19 @@ class AppServerClient(QtCore.QObject):
             self.model_catalog_error.emit(tr("backend.model_failed"))
             return
 
-        result = result if isinstance(result, dict) else {}
-        data = result.get("data")
-        if isinstance(data, list):
-            models.extend(
-                item for item in data if isinstance(item, dict)
-            )
+        if not isinstance(result, dict) or not isinstance(
+            result.get("data"), list
+        ):
+            self.model_catalog_error.emit(tr("backend.model_failed"))
+            return
 
+        data = result["data"]
         cursor = result.get("nextCursor")
+        if cursor is not None and not isinstance(cursor, str):
+            self.model_catalog_error.emit(tr("backend.model_failed"))
+            return
+        models.extend(item for item in data if isinstance(item, dict))
+
         if cursor and page_count < 9 and len(models) < 1000:
             self._request_model_page(
                 generation,
@@ -440,6 +445,10 @@ class AppServerClient(QtCore.QObject):
             self.turn_id = None
             self._turn_active = False
             self._interrupt_pending = False
+            if response_timed_out:
+                # Do not let the UI become ready again while this ambiguous
+                # session is being terminated.
+                self.thread_id = None
             self.status.emit(tr("status.ready"))
             self.error.emit(message)
             self.turn_failed.emit(message)

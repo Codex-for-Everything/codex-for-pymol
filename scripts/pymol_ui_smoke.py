@@ -199,6 +199,10 @@ def main():
         dialog.python_checkbox.text() == "启用不受限 Python（高风险）",
         "Python warning is not localized",
     )
+    dialog._model_catalog_failed(
+        ui.tr("backend.model_failed"),
+        "backend.model_failed",
+    )
     dialog.preferences.set_language(ui.EN)
     ui.set_locale(ui.EN)
     dialog._retranslate_ui()
@@ -211,6 +215,11 @@ def main():
         and dialog.python_checkbox.text()
         == "Enable unrestricted Python (high risk)",
         "switching to English did not retranslate persistent controls",
+    )
+    require(
+        dialog._model_catalog_error
+        == ui.tr("backend.model_failed"),
+        "switching languages left a stale localized model-list error",
     )
     dialog.preferences.set_language(ui.ZH_CN)
     ui.set_locale(ui.ZH_CN)
@@ -227,7 +236,7 @@ def main():
     dialog._confirm = original_confirm
     require(
         python_warning
-        and "切换到“PyMOL 控制台”标签" in python_warning[-1][1]
+        and "切换离开 Codex 标签" in python_warning[-1][1]
         and "Codex 插件面板" in python_warning[-1][1]
         and "退出 PyMOL" in python_warning[-1][1],
         "unrestricted-Python warning does not name the exact auto-lock triggers",
@@ -928,6 +937,9 @@ def main():
     default_model_dialog.deleteLater()
     failed_model_dialog = ui.ModelSettingsDialog(
         [],
+        model="gpt-saved",
+        effort="high",
+        service_tier="priority",
         catalog_error="无法获取模型列表。",
         parent=dialog,
     )
@@ -936,6 +948,11 @@ def main():
         and failed_model_dialog.details_label.text()
         == "无法获取模型列表。",
         "catalog errors were hidden together with the model description",
+    )
+    require(
+        failed_model_dialog.current_settings()
+        == ("gpt-saved", "high", "priority"),
+        "an unavailable model catalog erased saved settings",
     )
     failed_model_dialog.deleteLater()
     dialog._save_model_settings("gpt-test", "high", "priority")

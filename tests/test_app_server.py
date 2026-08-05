@@ -63,6 +63,10 @@ def _client(generation=1):
     client.status = _Signal()
     client.error = _Signal()
     client.ready = _Signal()
+    client.turn_failed = _Signal()
+    client.model_catalog = _Signal()
+    client.model_catalog_error = _Signal()
+    client._model_request_generation = generation
     client.requests = mock.Mock()
     client.send_request = mock.Mock(return_value=17)
     client._stop_unusable_process = mock.Mock()
@@ -316,6 +320,63 @@ class AppServerThreadTests(unittest.TestCase):
         self.assertNotIn("serviceTier", params)
         self.assertTrue(client._turn_active)
         self.assertTrue(callable(callback))
+
+    def test_malformed_model_pages_fail_instead_of_validating_empty_catalog(self):
+        invalid_results = [None, {}, {"data": {}}, {"data": [], "nextCursor": 7}]
+        for result in invalid_results:
+            with self.subTest(result=result):
+                client = _client(generation=16)
+                models = []
+
+                client._model_page_received(16, result, None, models, 0)
+
+                self.assertEqual(client.model_catalog.values, [])
+                self.assertEqual(len(client.model_catalog_error.values), 1)
+                self.assertEqual(models, [])
+
+    def test_valid_empty_model_page_is_still_a_success(self):
+        client = _client(generation=17)
+
+        client._model_page_received(
+            17,
+            {"data": [], "nextCursor": None},
+            None,
+            [],
+            0,
+        )
+
+        self.assertEqual(client.model_catalog.values, [([], )])
+        self.assertEqual(client.model_catalog_error.values, [])
+
+    def test_ambiguous_turn_start_timeout_invalidates_session_before_failure(self):
+        client = _client(generation=18)
+        client.thread_id = "verified-thread"
+        client._turn_active = True
+
+        client._turn_accepted(
+            None,
+            {"code": -32001, "message": "response timed out"},
+        )
+
+        self.assertIsNone(client.thread_id)
+        self.assertIsNone(client.turn_id)
+        self.assertFalse(client._turn_active)
+        self.assertEqual(len(client.turn_failed.values), 1)
+        client._stop_unusable_process.assert_called_once_with()
+
+    def test_definitive_turn_start_rejection_keeps_verified_session(self):
+        client = _client(generation=19)
+        client.thread_id = "verified-thread"
+        client._turn_active = True
+
+        client._turn_accepted(
+            None,
+            {"code": -32602, "message": "invalid parameters"},
+        )
+
+        self.assertEqual(client.thread_id, "verified-thread")
+        self.assertFalse(client._turn_active)
+        client._stop_unusable_process.assert_not_called()
 
 
 if __name__ == "__main__":

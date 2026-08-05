@@ -81,7 +81,9 @@ class AppServerProbe:
             try:
                 message = self.messages.get(timeout=remaining)
             except queue.Empty:
-                raise TimeoutError("waiting for {} timed out".format(method))
+                raise TimeoutError(
+                    "waiting for {} timed out".format(method)
+                ) from None
             if message is None:
                 details = "\n".join(self.stderr_lines[-10:])
                 raise RuntimeError(
