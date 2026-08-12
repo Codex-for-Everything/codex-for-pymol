@@ -108,9 +108,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_INSTALL_NOTES: |-
+            重要兼容性更新：使用 0.5.1 或更早版本的用户请升级到 0.5.2 或更高版本并重启 PyMOL。部分较新的 Codex 会通过本地工具宿主转发插件的动态工具；旧版插件可能误将这个必要宿主关闭，导致 Codex 提示无法控制当前 PyMOL。0.5.2 改为根据当前 Codex 实际报告的功能进行兼容，不依赖写死的 Codex 版本号。
+
             Windows：0.3.2 及更早版本存在按钮文字对比度和部分 Codex CLI 发现/启动问题，请升级到 0.4.0 或更高版本。
 
             安装：下载 codex-for-pymol-VERSION.zip，并在 PyMOL 插件管理器中直接安装（不要解压）。从 0.2.x 或更早版本升级时，请先卸载旧版插件并重启 PyMOL。
+
+            Important compatibility update: users of version 0.5.1 or earlier should upgrade to version 0.5.2 or later and restart PyMOL. Some newer Codex installations route the plugin's dynamic tools through a local tool host; earlier plugin releases could disable that required host and make Codex report that live PyMOL control was unavailable. Version 0.5.2 now adapts to capabilities reported by the selected Codex instead of relying on a hard-coded Codex version.
 
             Windows: versions 0.3.2 and earlier have button-text contrast and Codex CLI discovery/launch issues. Upgrade to version 0.4.0 or later.
 

@@ -217,9 +217,13 @@ class DiscoveryTests(unittest.TestCase):
         invocation = process_invocation(
             "/opt/codex",
             {
+                "code_mode",
+                "code_mode_host",
+                "code_mode_only",
                 "fast_mode",
                 "future_host_capability",
                 "shell_tool",
+                "unified_exec",
                 "respect_system_proxy",
             },
         )
@@ -231,17 +235,37 @@ class DiscoveryTests(unittest.TestCase):
                 "app-server",
                 "--stdio",
                 "--disable",
+                "code_mode",
+                "--disable",
+                "code_mode_only",
+                "--disable",
                 "future_host_capability",
                 "--enable",
                 "respect_system_proxy",
                 "--disable",
                 "shell_tool",
+                "--disable",
+                "unified_exec",
                 "-c",
                 "mcp_servers={}",
             ],
         )
+        self.assertNotIn("code_mode_host", invocation.arguments)
         self.assertNotIn("fast_mode", invocation.arguments)
         self.assertNotIn("plugins", invocation.arguments)
+
+    def test_older_catalog_needs_no_code_mode_host_version_branch(self):
+        arguments = app_server_arguments(
+            "/opt/older-codex",
+            {"fast_mode", "shell_tool"},
+        )
+
+        self.assertNotIn("code_mode_host", arguments)
+        self.assertIn("shell_tool", arguments)
+        self.assertEqual(
+            arguments[arguments.index("shell_tool") - 1],
+            "--disable",
+        )
 
     def test_feature_list_parser_ignores_removed_and_noise(self):
         output = """

@@ -8,6 +8,15 @@ The interface supports English and Simplified Chinese. On first use it uses
 Simplified Chinese for a Chinese system locale and English otherwise. Open
 **Settings…** to change it later.
 
+> **Important compatibility update:** If you use version 0.5.1 or earlier,
+> upgrade to 0.5.2 or later and restart PyMOL. Some newer Codex installations
+> route client-provided dynamic tools through a local tool host. Earlier plugin
+> releases could mistake that required host for an unrelated capability and
+> disable it, causing Codex to report that live PyMOL control was unavailable.
+> Version 0.5.2 checks the capabilities reported by the selected Codex instead
+> of relying on a Codex version number, so older Codex installations that do
+> not provide this host remain supported.
+
 > **Windows upgrade notice:** Versions 0.3.2 and earlier contain
 > Windows-specific bugs that can make button text nearly invisible and prevent
 > the plugin from finding or starting some Codex CLI installations, especially
@@ -286,10 +295,12 @@ ChatGPT app and restart PyMOL.
 
 Before opening a conversation, the plugin runs a short safety check against
 the selected Codex. It disables every reported optional feature except a small
-reviewed set needed for proxy handling, transport, context maintenance, and
-the model's advertised standard/fast service tiers. Newly reported features
-therefore start disabled. If the plugin cannot verify the feature list, it
-does not start the background service. Run:
+reviewed set needed for proxy handling, transport of the plugin's controlled
+tools, context maintenance, and the model's advertised standard/fast service
+tiers. These reviewed runtime features retain the state reported by the
+selected Codex rather than being forced on. Newly reported features therefore
+start disabled. If the plugin cannot verify the feature list, it does not
+start the background service. Run:
 
 ```bash
 codex features list

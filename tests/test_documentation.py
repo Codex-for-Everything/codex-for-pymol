@@ -177,6 +177,24 @@ class DocumentationTests(unittest.TestCase):
             self.assertIn("versions 0.3.2 and earlier", workflow)
             self.assertIn("Upgrade to version 0.4.0 or later", workflow)
 
+    def test_dynamic_tool_host_upgrade_notice_is_bilingual_and_synced(self):
+        for path in INSTALL_DOCS:
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIn("0.5.1", text)
+                self.assertIn("0.5.2", text)
+                if path.name.endswith("zh-CN.md"):
+                    self.assertIn("本地工具宿主", text)
+                    self.assertIn("实际报告的功能", text)
+                else:
+                    self.assertIn("local tool host", text)
+                    self.assertIn("capabilities reported", text)
+        if RELEASE_WORKFLOW.is_file():
+            workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+            self.assertIn("重要兼容性更新：使用 0.5.1", workflow)
+            self.assertIn("Important compatibility update: users of version 0.5.1", workflow)
+            self.assertIn("0.5.2 or later", workflow)
+
     @unittest.skipUnless(
         RELEASE_WORKFLOW.is_file(),
         "GitHub workflow is intentionally absent from source distributions",

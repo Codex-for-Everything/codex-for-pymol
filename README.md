@@ -21,6 +21,15 @@ change it at any time under **Settings… → Interface language**.
 
 Detailed guide: [English](docs/INSTALL.md) | [简体中文](docs/INSTALL.zh-CN.md)
 
+> **Important compatibility update:** If you use version 0.5.1 or earlier,
+> upgrade to 0.5.2 or later and restart PyMOL. Some newer Codex installations
+> route client-provided dynamic tools through a local tool host. Earlier plugin
+> releases could mistake that required host for an unrelated capability and
+> disable it, causing Codex to report that live PyMOL control was unavailable.
+> Version 0.5.2 checks the capabilities reported by the selected Codex instead
+> of relying on a Codex version number, so older Codex installations that do
+> not provide this host remain supported.
+
 > **Windows upgrade notice:** Versions 0.3.2 and earlier contain
 > Windows-specific bugs that can make button text nearly invisible and prevent
 > the plugin from finding or starting some Codex CLI installations, especially
@@ -110,7 +119,9 @@ exist.
 The normal mode uses a small set of controlled PyMOL tools. It does not give
 Codex general shell or file-editing access. At startup, the plugin reads the
 exact optional-feature list from the selected Codex and disables unrelated
-capabilities, including shell, plugin, skill, and environment access. A future
+capabilities, including shell, plugin, skill, and environment access. It
+preserves only a small reviewed set of runtime features required to transport
+the plugin's own controlled tools, without forcing those features on. A future
 feature is disabled unless the integration has explicitly classified it as
 necessary and safe. If the list cannot be verified, startup stops instead of
 using an unknown permission boundary. Each PyMOL conversation is also started

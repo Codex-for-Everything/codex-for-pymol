@@ -18,8 +18,13 @@ WINDOWS_LAUNCHER_SUFFIXES = frozenset((".exe", ".cmd", ".bat"))
 ENABLED_APP_SERVER_FEATURES = frozenset(("respect_system_proxy",))
 PASSTHROUGH_APP_SERVER_FEATURES = frozenset(
     (
-        # These affect transport, context maintenance, or the user-visible
-        # service tier without granting another host capability.
+        # These affect the client tool transport, context maintenance, or the
+        # user-visible service tier without granting an unrelated capability.
+        # When reported, code_mode_host is the local runtime used to dispatch
+        # client-owned dynamic tools. Preserve the selected Codex's own state
+        # instead of forcing it on or off. Codex versions without this feature
+        # receive no unknown command-line flag.
+        "code_mode_host",
         "enable_request_compression",
         "fast_mode",
         "remote_compaction_v2",
