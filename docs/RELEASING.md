@@ -57,7 +57,7 @@ because ordinary PyMOL users should install the plugin ZIP.
 
 After pushing the tag, wait for the **Release** workflow to finish successfully.
 Do not create or upload the Release manually. The downloadable installer appears
-on the [Releases page](https://github.com/wuhuawei1996/codex-for-pymol/releases)
+on the [Releases page](https://github.com/Codex-for-Everything/codex-for-pymol/releases)
 only after the workflow publishes it.
 
 No personal access token, Codex credential, or API key is required. The final

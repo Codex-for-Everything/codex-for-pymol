@@ -14,13 +14,26 @@ from .app_server import AppServerClient
 from .audit import AuditLogger
 from .discovery import find_codex, is_supported_launcher
 from .executor import PyMOLExecutor, action_risk
-from .i18n import EN, ZH_CN, get_locale, set_locale, text as tr
+from .image_inputs import (
+    MAX_DRAFT_IMAGES,
+    ImageAttachmentStore,
+    ImageInputError,
+)
+from .i18n import (
+    EN,
+    ZH_CN,
+    get_locale,
+    set_locale,
+    status_text,
+    text as tr,
+)
 from .preferences import PreferenceStore
 from .presentation import chat_block, chat_prefix, tool_display_name
 from .protocol import (
     diagnostic_fingerprint,
     diagnostic_summary,
     is_active_tool_call,
+    model_supports_input,
 )
 from .serializer import to_jsonable
 
@@ -30,6 +43,16 @@ class MessageInput(QtWidgets.QPlainTextEdit):
 
     send_requested = (
         QtCore.Signal() if hasattr(QtCore, "Signal") else QtCore.pyqtSignal()
+    )
+    image_received = (
+        QtCore.Signal(object)
+        if hasattr(QtCore, "Signal")
+        else QtCore.pyqtSignal(object)
+    )
+    files_received = (
+        QtCore.Signal(object)
+        if hasattr(QtCore, "Signal")
+        else QtCore.pyqtSignal(object)
     )
 
     def __init__(self, parent=None):
@@ -66,6 +89,151 @@ class MessageInput(QtWidgets.QPlainTextEdit):
             self.insertPlainText("\n")
             return
         super().keyPressEvent(event)
+
+    def canInsertFromMimeData(self, source):
+        if source.hasImage() or self._local_files(source):
+            return True
+        return super().canInsertFromMimeData(source)
+
+    def insertFromMimeData(self, source):
+        paths = self._local_files(source)
+        if paths:
+            self.files_received.emit(paths)
+            return
+        if source.hasImage():
+            self.image_received.emit(source.imageData())
+            return
+        super().insertFromMimeData(source)
+
+    @staticmethod
+    def _local_files(source):
+        if not source.hasUrls():
+            return []
+        return [
+            url.toLocalFile()
+            for url in source.urls()
+            if url.isLocalFile() and url.toLocalFile()
+        ]
+
+
+class ImageAttachmentChip(QtWidgets.QFrame):
+    """Compact image preview with a distinct remove affordance."""
+
+    remove_requested = (
+        QtCore.Signal(str)
+        if hasattr(QtCore, "Signal")
+        else QtCore.pyqtSignal(str)
+    )
+
+    def __init__(self, attachment, parent=None):
+        super().__init__(parent)
+        self.attachment_id = attachment.attachment_id
+        self.setObjectName("codex_for_pymol_image_attachment")
+        self.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Maximum,
+            QtWidgets.QSizePolicy.Fixed,
+        )
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(4, 3, 4, 3)
+        layout.setSpacing(8)
+
+        thumbnail = QtWidgets.QLabel()
+        thumbnail.setObjectName("codex_for_pymol_image_thumbnail")
+        thumbnail.setFixedSize(48, 36)
+        thumbnail.setAlignment(QtCore.Qt.AlignCenter)
+        preview = QtGui.QImage(attachment.path)
+        if not preview.isNull():
+            preview = preview.scaled(
+                thumbnail.size(),
+                QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation,
+            )
+            thumbnail.setPixmap(QtGui.QPixmap.fromImage(preview))
+        layout.addWidget(thumbnail)
+
+        description = QtWidgets.QLabel(
+            tr(
+                "image.attachment_label",
+                width=attachment.width,
+                height=attachment.height,
+            )
+        )
+        description.setObjectName("codex_for_pymol_image_description")
+        description.setSizePolicy(
+            QtWidgets.QSizePolicy.Fixed,
+            QtWidgets.QSizePolicy.Preferred,
+        )
+        layout.addWidget(description)
+
+        remove_button = QtWidgets.QToolButton()
+        remove_button.setObjectName("codex_for_pymol_remove_image")
+        remove_button.setAutoRaise(True)
+        remove_button.setToolTip(tr("image.remove_tooltip"))
+        remove_button.setAccessibleName(
+            tr(
+                "image.remove_accessible",
+                width=attachment.width,
+                height=attachment.height,
+            )
+        )
+        remove_button.setCursor(QtCore.Qt.PointingHandCursor)
+        style = self.style()
+        close_icon = style.standardIcon(
+            QtWidgets.QStyle.SP_TitleBarCloseButton
+        )
+        if close_icon.isNull():
+            remove_button.setText("×")
+        else:
+            remove_button.setIcon(close_icon)
+            remove_button.setIconSize(QtCore.QSize(16, 16))
+        remove_button.setFixedSize(20, 20)
+        remove_button.clicked.connect(
+            lambda _checked=False: self.remove_requested.emit(
+                self.attachment_id
+            )
+        )
+        layout.addWidget(remove_button)
+        self._apply_theme(parent.palette() if parent is not None else None)
+
+    def _apply_theme(self, palette=None):
+        palette = palette or self.palette()
+        foreground = palette.color(
+            QtGui.QPalette.Active,
+            QtGui.QPalette.WindowText,
+        )
+        color = "{}, {}, {}".format(
+            foreground.red(),
+            foreground.green(),
+            foreground.blue(),
+        )
+        self.setStyleSheet(
+            "QFrame#codex_for_pymol_image_attachment {{"
+            "background: transparent;"
+            "border: 1px solid rgba({color}, 96);"
+            "border-radius: 6px;"
+            "}}"
+            "QLabel#codex_for_pymol_image_thumbnail, "
+            "QLabel#codex_for_pymol_image_description {{"
+            "color: rgba({color}, 255);"
+            "background: transparent;"
+            "border: 0;"
+            "}}"
+            "QToolButton#codex_for_pymol_remove_image {{"
+            "background: transparent;"
+            "border: 0;"
+            "padding: 0;"
+            "}}"
+            "QToolButton#codex_for_pymol_remove_image:hover {{"
+            "background: rgba({color}, 28);"
+            "border-radius: 10px;"
+            "}}"
+            "QToolButton#codex_for_pymol_remove_image:pressed {{"
+            "background: rgba({color}, 48);"
+            "border-radius: 10px;"
+            "}}".format(color=color)
+        )
 
 
 class PythonApprovalDialog(QtWidgets.QDialog):
@@ -511,6 +679,10 @@ class CodexDialog(QtWidgets.QDialog):
                 self.runtime_directory.chmod(0o700)
             except OSError:
                 pass
+        self.image_store = ImageAttachmentStore(
+            self.runtime_directory / "attachments"
+        )
+        self._draft_images = []
         app_data = QtCore.QStandardPaths.writableLocation(
             QtCore.QStandardPaths.AppLocalDataLocation
         ) or tempfile.gettempdir()
@@ -582,7 +754,9 @@ class CodexDialog(QtWidgets.QDialog):
 
         self.status_row = QtWidgets.QHBoxLayout()
         self.status_row.setSpacing(6)
-        self.status_label = QtWidgets.QLabel(tr("status.disconnected"))
+        self.status_label = QtWidgets.QLabel(
+            status_text(tr("status.disconnected"))
+        )
         self.status_label.setWordWrap(False)
         self.status_label.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding,
@@ -603,7 +777,22 @@ class CodexDialog(QtWidgets.QDialog):
         self.input.setPlaceholderText(tr("input.placeholder"))
         self._sync_input_height()
         self.input.send_requested.connect(self._send)
+        self.input.image_received.connect(self._add_clipboard_image)
+        self.input.files_received.connect(self._add_image_paths)
         footer_layout.addWidget(self.input)
+
+        self.attachment_widget = QtWidgets.QWidget()
+        self.attachment_widget.setObjectName(
+            "codex_for_pymol_image_attachments"
+        )
+        self.attachment_layout = QtWidgets.QHBoxLayout(
+            self.attachment_widget
+        )
+        self.attachment_layout.setContentsMargins(0, 0, 0, 0)
+        self.attachment_layout.setSpacing(6)
+        self.attachment_layout.addStretch(1)
+        self.attachment_widget.hide()
+        footer_layout.addWidget(self.attachment_widget)
 
         self.action_row = QtWidgets.QHBoxLayout()
         self.action_row.setContentsMargins(0, 0, 0, 0)
@@ -612,6 +801,10 @@ class CodexDialog(QtWidgets.QDialog):
         self.send_button.setDefault(True)
         self.send_button.clicked.connect(self._send)
         self.action_row.addWidget(self.send_button)
+        self.attach_button = QtWidgets.QPushButton(tr("button.attach_image"))
+        self.attach_button.setToolTip(tr("image.attach_tooltip"))
+        self.attach_button.clicked.connect(self._choose_images)
+        self.action_row.addWidget(self.attach_button)
         self.stop_button = QtWidgets.QPushButton(tr("button.stop"))
         self.stop_button.clicked.connect(self._stop)
         self.action_row.addWidget(self.stop_button)
@@ -639,7 +832,7 @@ class CodexDialog(QtWidgets.QDialog):
             self.transcript.document().documentMargin()
         )
         self._sync_status_separator()
-        self.footer_widget.setFixedHeight(self.footer_widget.sizeHint().height())
+        self._update_footer_height()
         self._update_model_settings_button()
         self._set_ready(False)
 
@@ -651,6 +844,114 @@ class CodexDialog(QtWidgets.QDialog):
             + 2
         )
         self.input.setFixedHeight(input_height)
+
+    def _update_footer_height(self):
+        footer_layout = self.footer_widget.layout()
+        if footer_layout is not None:
+            # The footer deliberately stays fixed while the transcript takes
+            # any extra dock height.  Recompute that fixed height whenever a
+            # footer child is shown, hidden, or rebuilt so the constraint
+            # cannot retain a stale size hint from an earlier UI state.
+            footer_layout.invalidate()
+            footer_layout.activate()
+            target_height = footer_layout.sizeHint().height()
+            if (
+                self.footer_widget.minimumHeight() != target_height
+                or self.footer_widget.maximumHeight() != target_height
+            ):
+                self.footer_widget.setFixedHeight(target_height)
+
+    def _choose_images(self):
+        paths, _selected_filter = QtWidgets.QFileDialog.getOpenFileNames(
+            self,
+            tr("file.image_title"),
+            str(Path.home()),
+            tr("file.image_filter"),
+        )
+        self._add_image_paths(paths)
+
+    def _add_image_paths(self, paths):
+        for path in paths or ():
+            if len(self._draft_images) >= MAX_DRAFT_IMAGES:
+                self._show_error(
+                    tr("error.image_count", count=MAX_DRAFT_IMAGES)
+                )
+                break
+            try:
+                attachment = self.image_store.add_file(path)
+            except ImageInputError as exc:
+                self._show_image_error(exc)
+                continue
+            except Exception:
+                self._show_error(tr("error.image_unreadable"))
+                continue
+            self._draft_images.append(attachment)
+        self._refresh_image_attachments()
+
+    def _add_clipboard_image(self, image):
+        if len(self._draft_images) >= MAX_DRAFT_IMAGES:
+            self._show_error(
+                tr("error.image_count", count=MAX_DRAFT_IMAGES)
+            )
+            return
+        try:
+            attachment = self.image_store.add_image(image)
+        except ImageInputError as exc:
+            self._show_image_error(exc)
+            return
+        except Exception:
+            self._show_error(tr("error.image_unreadable"))
+            return
+        self._draft_images.append(attachment)
+        self._refresh_image_attachments()
+
+    def _show_image_error(self, error):
+        key = {
+            "unsupported": "error.image_unsupported",
+            "animated": "error.image_animated",
+            "source_too_large": "error.image_source_too_large",
+            "dimensions_too_large": "error.image_dimensions_too_large",
+            "save_failed": "error.image_save_failed",
+            "normalized_too_large": "error.image_normalized_too_large",
+            "storage_limit": "error.image_storage_limit",
+        }.get(error.code, "error.image_unreadable")
+        self._show_error(tr(key))
+
+    def _refresh_image_attachments(self):
+        while self.attachment_layout.count() > 1:
+            item = self.attachment_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.deleteLater()
+
+        for attachment in self._draft_images:
+            chip = ImageAttachmentChip(attachment, self.attachment_widget)
+            chip.remove_requested.connect(self._remove_image_attachment)
+            self.attachment_layout.insertWidget(
+                self.attachment_layout.count() - 1,
+                chip,
+            )
+
+        self.attachment_widget.setVisible(bool(self._draft_images))
+        self.attach_button.setEnabled(
+            len(self._draft_images) < MAX_DRAFT_IMAGES
+        )
+        self._update_footer_height()
+
+    def _remove_image_attachment(self, attachment_id):
+        for index, attachment in enumerate(self._draft_images):
+            if attachment.attachment_id != attachment_id:
+                continue
+            self._draft_images.pop(index)
+            self.image_store.discard(attachment)
+            break
+        self._refresh_image_attachments()
+
+    def _clear_image_attachments(self):
+        self.image_store.clear()
+        self._draft_images = []
+        self._refresh_image_attachments()
 
     def _sync_status_margins(self, document_margin):
         text_inset = max(0, int(round(document_margin)))
@@ -721,12 +1022,13 @@ class CodexDialog(QtWidgets.QDialog):
         self._sync_status_margins(source_margin)
         self._sync_status_separator()
         self._sync_input_height()
+        for chip in self.attachment_widget.findChildren(
+            ImageAttachmentChip
+        ):
+            chip._apply_theme(self.palette())
         if self._model_settings_dialog is not None:
             self._model_settings_dialog.apply_host_palette(self.palette())
-        footer_layout = self.footer_widget.layout()
-        if footer_layout is not None:
-            footer_layout.activate()
-            self.footer_widget.setFixedHeight(footer_layout.sizeHint().height())
+        self._update_footer_height()
 
     def _configured_codex(self):
         configured = self.preferences.codex_executable()
@@ -739,11 +1041,12 @@ class CodexDialog(QtWidgets.QDialog):
         executable = self._configured_codex()
         if not executable:
             self._set_codex_selector_visible(True)
-            self.status_label.setText(tr("error.codex_not_found"))
+            self._set_status(tr("error.codex_not_found"))
             return
         self._set_codex_selector_visible(False)
         if self.client:
             self.client.close()
+            self._clear_image_attachments()
         self._tool_response_cache.clear()
         self._turn_checkpoint_key = None
         self._turn_checkpoint_path = None
@@ -751,7 +1054,7 @@ class CodexDialog(QtWidgets.QDialog):
         self._last_diagnostic_fingerprint = None
         self._displayed_diagnostic_fingerprint = None
         self.client = AppServerClient(executable, self.runtime_directory, self)
-        self.client.status.connect(self.status_label.setText)
+        self.client.status.connect(self._set_status)
         self.client.error.connect(self._show_error)
         self.client.diagnostic.connect(self._show_diagnostic)
         self.client.ready.connect(self._client_ready)
@@ -807,6 +1110,7 @@ class CodexDialog(QtWidgets.QDialog):
             else tr("button.select_codex")
         )
         self.choose_button.setVisible(visible)
+        self._update_footer_height()
 
     def _set_ready(self, ready):
         self._ready = bool(ready)
@@ -830,8 +1134,9 @@ class CodexDialog(QtWidgets.QDialog):
 
     def _send(self):
         text = self.input.toPlainText().strip()
+        images = list(self._draft_images)
         if (
-            not text
+            (not text and not images)
             or not self.send_button.isEnabled()
             or not self.client
             or not self.client.thread_id
@@ -840,21 +1145,44 @@ class CodexDialog(QtWidgets.QDialog):
             return
         try:
             model, effort, service_tier = self._effective_model_settings()
+            if images and self._model_supports_images(model) is False:
+                self._show_error(tr("error.model_no_image"))
+                return
             self.client.start_turn(
                 text,
                 self.full_python_enabled,
                 model,
                 effort,
                 service_tier,
+                image_paths=[attachment.path for attachment in images],
             )
         except Exception as exc:
             self._show_error(str(exc))
             return
         self.input.clear()
-        self._append_block(tr("role.user"), text)
+        if images:
+            self._draft_images = []
+            self._refresh_image_attachments()
+        display_text = text
+        if images:
+            image_label = tr("image.sent", count=len(images))
+            display_text = (
+                image_label + " " + display_text
+                if display_text
+                else image_label
+            )
+        self._append_block(tr("role.user"), display_text)
         self._audit(
             "user_instruction",
             text=text,
+            images=[
+                {
+                    "width": attachment.width,
+                    "height": attachment.height,
+                    "bytes": attachment.byte_count,
+                }
+                for attachment in images
+            ],
             thread_id=self.client.thread_id,
         )
         self._assistant_streaming = False
@@ -890,6 +1218,7 @@ class CodexDialog(QtWidgets.QDialog):
         self._tool_response_cache.clear()
         self._turn_checkpoint_key = None
         self._turn_checkpoint_path = None
+        self._clear_image_attachments()
         self.transcript.clear()
 
     def _saved_model_settings(self):
@@ -904,6 +1233,15 @@ class CodexDialog(QtWidgets.QDialog):
         if not self._model_catalog_validated or not self._model_catalog:
             return "", "", ""
         return self._saved_model_settings()
+
+    def _model_supports_images(self, model):
+        if not self._model_catalog_validated:
+            return None
+        return model_supports_input(
+            self._model_catalog,
+            model,
+            "image",
+        )
 
     def _set_model_catalog(self, catalog):
         self._model_catalog = [
@@ -1023,7 +1361,7 @@ class CodexDialog(QtWidgets.QDialog):
                 if language_changed:
                     self._retranslate_ui()
                     self.language_changed.emit(tr("app.dock_title"))
-                self.status_label.setText(tr("settings.saved"))
+                self._set_status(tr("settings.saved"))
         finally:
             self._model_settings_dialog = None
             dialog.deleteLater()
@@ -1083,19 +1421,22 @@ class CodexDialog(QtWidgets.QDialog):
         self.transcript.setPlaceholderText(tr("transcript.placeholder"))
         self.input.setPlaceholderText(tr("input.placeholder"))
         self.send_button.setText(tr("button.send"))
+        self.attach_button.setText(tr("button.attach_image"))
+        self.attach_button.setToolTip(tr("image.attach_tooltip"))
         self.stop_button.setText(tr("button.stop"))
         self.new_button.setText(tr("button.new_chat"))
         self.model_settings_button.setText(tr("button.settings"))
         self.python_checkbox.setText(tr("python.enable"))
         self.undo_button.setText(tr("button.undo"))
         self.undo_button.setToolTip(tr("undo.tooltip"))
-        self.status_label.setText(
+        self._set_status(
             tr("status.ready") if self._ready else tr("status.disconnected")
         )
         self._set_codex_selector_visible(
             not self.choose_button.isHidden(),
             retry=self._codex_selector_retry,
         )
+        self._refresh_image_attachments()
         self._update_model_settings_button()
 
     def _protocol_message(self, message):
@@ -1381,7 +1722,7 @@ class CodexDialog(QtWidgets.QDialog):
         if reason:
             message += tr("system.python_reason", reason=reason)
         self._append_system(message)
-        self.status_label.setText(tr("status.python_stopping"))
+        self._set_status(tr("status.python_stopping"))
 
         stop_requested = False
         try:
@@ -1589,12 +1930,15 @@ class CodexDialog(QtWidgets.QDialog):
         self._append_transcript_block("[{}] ".format(text))
 
     def _show_error(self, text):
-        self.status_label.setText(text)
+        self._set_status(text)
         self._append_system(tr("error.prefix", detail=text))
         if self.client is not None and not self.client.thread_id:
             self._set_ready(False)
             self._set_codex_selector_visible(True, retry=True)
             self._append_pending_diagnostic()
+
+    def _set_status(self, text):
+        self.status_label.setText(status_text(text))
 
     def _show_diagnostic(self, text):
         fingerprint = diagnostic_fingerprint(text)
@@ -1636,6 +1980,7 @@ class CodexDialog(QtWidgets.QDialog):
             theme_follower.stop()
         if self.client:
             self.client.close()
+        self._clear_image_attachments()
 
     def closeEvent(self, event):
         self.shutdown()

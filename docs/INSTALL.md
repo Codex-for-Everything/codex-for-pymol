@@ -92,7 +92,7 @@ You can also choose the executable later with **Choose Codex…**.
 
 ### Install a release
 
-Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest). Under **Assets**, download `codex-for-pymol-X.Y.Z.zip`, where `X.Y.Z` matches the release version. Do not choose GitHub's automatically generated **Source code (zip)** or **Source code (tar.gz)** archives; they are repository snapshots, not installable PyMOL plugins. Do not extract the plugin zip.
+Open the [latest GitHub Release](https://github.com/Codex-for-Everything/codex-for-pymol/releases/latest). Under **Assets**, download `codex-for-pymol-X.Y.Z.zip`, where `X.Y.Z` matches the release version. Do not choose GitHub's automatically generated **Source code (zip)** or **Source code (tar.gz)** archives; they are repository snapshots, not installable PyMOL plugins. Do not extract the plugin zip.
 
 In PyMOL, select:
 
@@ -169,6 +169,7 @@ structure file.
 | Control | Purpose |
 | --- | --- |
 | **Send** | Send the message |
+| **Add image…** | Attach up to four images to this message |
 | **Stop** | Ask Codex to stop the current turn |
 | **New conversation** | Start a clean conversation |
 | **Settings…** | Change language, model, reasoning effort, or response speed |
@@ -177,7 +178,14 @@ structure file.
 
 - `Enter`: send;
 - `Ctrl+Enter` or `Shift+Enter`: insert a line break;
+- paste an image or drop local image files on the message editor: attach them;
 - `Esc`: keep the main panel open; in a separate dialog, cancel that dialog.
+
+An attachment row appears above the buttons while a message contains images.
+Click an image's close button in that row to remove it. A message may contain
+text and images, or images alone. If the selected model explicitly reports that
+it does not accept images, the plugin keeps the draft and asks you to choose
+another model.
 
 The initial transcript is four lines high and the editor is two lines high.
 Long content scrolls inside each area. Drag the separator above the panel to
@@ -243,9 +251,17 @@ survive a PyMOL restart.
 
 ## 7. Data and privacy
 
-Structure summaries and screenshots sent to Codex become part of the model
-conversation. Check your organization's policy before using unpublished or
-regulated structures.
+Structure summaries, screenshots, and attached images sent to Codex become
+part of the model conversation. Check your organization's policy before using
+unpublished, regulated, or otherwise sensitive material.
+
+The plugin decodes each attached image, bounds its dimensions, and writes a
+new PNG with a random name in the current conversation's private temporary
+directory. Codex receives that temporary path rather than the original path,
+and metadata from the source image is not retained. Temporary image copies are
+removed when you start a new conversation or the plugin shuts down normally.
+One message can contain up to four images, and the plugin also applies bounded
+file, pixel, and per-conversation storage limits before sending them.
 
 Each PyMOL launch starts a new ephemeral Codex conversation rather than
 resuming an earlier one. The plugin verifies the `thread/start` response before
@@ -357,6 +373,7 @@ the dock test through the real GUI launcher:
 
 ```bash
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_smoke.py
+PYTHONPATH=src /path/to/pymol/python scripts/pymol_image_inputs_smoke.py
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_ui_smoke.py
 PYTHONPATH=src /path/to/pymol/launcher -k -r scripts/pymol_dock_smoke.py
 ```

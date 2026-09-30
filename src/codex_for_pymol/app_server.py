@@ -76,7 +76,7 @@ class AppServerClient(QtCore.QObject):
     def __init__(self, executable, runtime_directory, parent=None):
         super().__init__(parent)
         self.executable = executable
-        self.runtime_directory = str(Path(runtime_directory))
+        self.runtime_directory = str(Path(runtime_directory).resolve())
         self.process = QtCore.QProcess(self)
         self.process.setProcessChannelMode(QtCore.QProcess.SeparateChannels)
         self.process.started.connect(self._initialize)
@@ -340,13 +340,34 @@ class AppServerClient(QtCore.QObject):
         model="",
         effort="",
         service_tier="",
+        image_paths=(),
     ):
         if not self.thread_id:
             raise RuntimeError(tr("backend.thread_not_ready"))
+        inputs = []
+        text = str(text or "")
+        if text:
+            inputs.append({"type": "text", "text": text})
+        for value in image_paths or ():
+            try:
+                path = Path(value)
+                path = path.resolve(strict=True)
+                path.relative_to(
+                    (Path(self.runtime_directory) / "attachments").resolve(
+                        strict=True
+                    )
+                )
+            except (OSError, TypeError, ValueError):
+                raise ValueError(tr("backend.image_unavailable"))
+            if not path.is_file():
+                raise ValueError(tr("backend.image_unavailable"))
+            inputs.append({"type": "localImage", "path": str(path)})
+        if not inputs:
+            raise ValueError(tr("backend.empty_input"))
         self.status.emit(tr("backend.processing"))
         params = {
             "threadId": self.thread_id,
-            "input": [{"type": "text", "text": text}],
+            "input": inputs,
             "additionalContext": python_mode_context(
                 unrestricted_python_enabled
             ),

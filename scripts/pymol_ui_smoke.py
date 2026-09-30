@@ -84,6 +84,7 @@ class FakeClient:
         self.sent = []
         self.python_modes = []
         self.turn_settings = []
+        self.turn_images = []
         self.responses = []
         self.interrupt_count = 0
         self.events = []
@@ -95,10 +96,12 @@ class FakeClient:
         model="",
         effort="",
         service_tier="",
+        image_paths=(),
     ):
         self.sent.append(text)
         self.python_modes.append(bool(unrestricted_python_enabled))
         self.turn_settings.append((model, effort, service_tier))
+        self.turn_images.append(list(image_paths))
 
     def refresh_models(self):
         pass
@@ -201,7 +204,7 @@ def main():
     ui.set_locale(ui.ZH_CN)
     dialog._retranslate_ui()
     require(dialog.windowTitle() == "PyMOL Codex 助手", "window title is not localized")
-    require(dialog.status_label.text() == "尚未连接", "status is not localized")
+    require(dialog.status_label.text() == "尚未连接。", "status is not localized")
     require(dialog.choose_button.text() == "选择 Codex…", "chooser is not localized")
     dialog._set_codex_selector_visible(False)
     require(dialog.choose_button.isHidden(), "chooser remains visible when Codex is found")
@@ -212,6 +215,10 @@ def main():
         "retry chooser is not localized",
     )
     require(dialog.send_button.text() == "发送", "send button is not localized")
+    require(
+        dialog.attach_button.text() == "添加图片…",
+        "image attachment button is not localized",
+    )
     require(dialog.stop_button.text() == "停止", "stop button is not localized")
     require(dialog.new_button.text() == "新建对话", "new button is not localized")
     require(
@@ -239,9 +246,10 @@ def main():
     dialog._retranslate_ui()
     require(
         dialog.windowTitle() == "Codex for PyMOL"
-        and dialog.status_label.text() == "Not connected"
+        and dialog.status_label.text() == "Not connected."
         and dialog.choose_button.text() == "Choose another Codex…"
         and dialog.send_button.text() == "Send"
+        and dialog.attach_button.text() == "Add image…"
         and dialog.model_settings_button.text() == "Settings…"
         and dialog.python_checkbox.text()
         == "Enable unrestricted Python (high risk)",
@@ -1004,6 +1012,7 @@ def main():
         "live-catalog-validated model settings are not active",
     )
 
+    dialog.input.clear()
     send_requests = []
     dialog.input.send_requested.connect(lambda: send_requests.append(True))
     enter = QtGui.QKeyEvent(
@@ -1057,9 +1066,33 @@ def main():
         dialog.model_settings_button.isEnabled(),
         "model settings are unavailable while Codex is ready",
     )
+    dialog._set_codex_selector_visible(True, retry=True)
+    app.processEvents(QtCore.QEventLoop.AllEvents)
+    selector_footer_height = dialog.footer_widget.height()
+    require(
+        selector_footer_height
+        == dialog.footer_widget.layout().sizeHint().height(),
+        "showing the Codex selector left a stale footer height",
+    )
+    dialog._set_codex_selector_visible(False)
+    app.processEvents(QtCore.QEventLoop.AllEvents)
+    require(
+        dialog.footer_widget.height()
+        == dialog.footer_widget.layout().sizeHint().height()
+        and dialog.footer_widget.height() <= selector_footer_height,
+        "hiding the Codex selector left a stale footer height",
+    )
+    footer_before_first_send = QtCore.QRect(
+        dialog.footer_widget.geometry()
+    )
     dialog.input.setPlainText("可以发送")
     dialog._send()
+    app.processEvents(QtCore.QEventLoop.AllEvents)
     require(client.sent == ["可以发送"], "ready message was not sent")
+    require(
+        dialog.footer_widget.geometry() == footer_before_first_send,
+        "the first text-only send reflowed the footer",
+    )
     require(
         client.python_modes == [False],
         "the live unrestricted-Python state was not supplied with the turn",
@@ -1078,6 +1111,152 @@ def main():
     require(
         dialog.model_settings_button.isEnabled(),
         "model settings were not restored after the turn",
+    )
+    clipboard_image = QtGui.QImage(40, 30, QtGui.QImage.Format_ARGB32)
+    clipboard_image.fill(QtGui.QColor("red"))
+    clipboard_image.setText("private-note", "must not survive normalization")
+    clipboard_image.setDotsPerMeterX(12345)
+    clipboard_image.setDotsPerMeterY(23456)
+    clipboard_image.setDevicePixelRatio(2.0)
+    if hasattr(QtGui, "QColorSpace"):
+        clipboard_image.setColorSpace(
+            QtGui.QColorSpace(QtGui.QColorSpace.SRgb)
+        )
+    clipboard_data = QtCore.QMimeData()
+    clipboard_data.setImageData(clipboard_image)
+    require(
+        dialog.input.canInsertFromMimeData(clipboard_data),
+        "message editor rejected clipboard image data",
+    )
+    dialog.input.insertFromMimeData(clipboard_data)
+    require(
+        len(dialog._draft_images) == 1
+        and dialog.attachment_widget.isVisible(),
+        "clipboard image was not added to the attachment row",
+    )
+    app.processEvents(QtCore.QEventLoop.AllEvents)
+    attachment_chip = dialog.attachment_widget.findChild(
+        ui.ImageAttachmentChip,
+        "codex_for_pymol_image_attachment",
+    )
+    require(
+        attachment_chip is not None,
+        "image attachment did not create a compact chip",
+    )
+    thumbnail = attachment_chip.findChild(
+        QtWidgets.QLabel,
+        "codex_for_pymol_image_thumbnail",
+    )
+    description = attachment_chip.findChild(
+        QtWidgets.QLabel,
+        "codex_for_pymol_image_description",
+    )
+    remove_image_button = attachment_chip.findChild(
+        QtWidgets.QToolButton,
+        "codex_for_pymol_remove_image",
+    )
+    require(
+        thumbnail is not None
+        and description is not None
+        and remove_image_button is not None,
+        "image attachment did not create the compact chip controls",
+    )
+    require(
+        attachment_chip.sizePolicy().horizontalPolicy()
+        == QtWidgets.QSizePolicy.Maximum
+        and description.geometry().left() - thumbnail.geometry().right() >= 7
+        and attachment_chip.width()
+        - remove_image_button.geometry().right()
+        <= 6,
+        "image attachment spacing is not compact and balanced",
+    )
+    require(
+        remove_image_button.autoRaise()
+        and remove_image_button.size() == QtCore.QSize(20, 20)
+        and (
+            not remove_image_button.icon().isNull()
+            or bool(remove_image_button.text())
+        )
+        and remove_image_button.cursor().shape()
+        == QtCore.Qt.PointingHandCursor,
+        "image removal control is not a compact, frameless circle",
+    )
+    require(
+        "border-radius: 6px" in attachment_chip.styleSheet()
+        and "color: rgba(" in attachment_chip.styleSheet()
+        and "background:transparent;border:0;padding:0"
+        in attachment_chip.styleSheet().replace(" ", ""),
+        "image attachment does not use the themed rounded treatment",
+    )
+    normalized_path = Path(dialog._draft_images[0].path)
+    require(
+        normalized_path.is_file()
+        and normalized_path.parent == dialog.runtime_directory / "attachments",
+        "clipboard image was not normalized in the private runtime directory",
+    )
+    if os.name != "nt":
+        require(
+            stat.S_IMODE(normalized_path.stat().st_mode) == 0o600,
+            "temporary conversation image is not private",
+        )
+    normalized_image = QtGui.QImage(str(normalized_path))
+    require(
+        not normalized_image.isNull()
+        and "private-note" not in normalized_image.textKeys()
+        and normalized_image.dotsPerMeterX() != 12345
+        and normalized_image.dotsPerMeterY() != 23456
+        and normalized_image.devicePixelRatio() == 1.0,
+        "temporary conversation image retained source metadata",
+    )
+    if hasattr(normalized_image, "colorSpace"):
+        require(
+            not normalized_image.colorSpace().isValid(),
+            "temporary conversation image retained its source color profile",
+        )
+    dialog.input.clear()
+    dialog._send()
+    require(
+        client.sent == ["可以发送", ""]
+        and client.turn_images[-1] == [str(normalized_path)],
+        "image-only turn was not sent through the normal client path",
+    )
+    require(
+        not dialog._draft_images and not dialog.attachment_widget.isVisible(),
+        "sent images remained in the draft attachment row",
+    )
+    dialog._finish_turn_ui()
+    first_drop = dialog.runtime_directory / "first-drop.png"
+    second_drop = dialog.runtime_directory / "second-drop.png"
+    require(
+        clipboard_image.save(str(first_drop), "PNG")
+        and clipboard_image.save(str(second_drop), "PNG"),
+        "could not prepare local image drop fixtures",
+    )
+    file_drop = QtCore.QMimeData()
+    file_drop.setUrls(
+        [
+            QtCore.QUrl.fromLocalFile(str(first_drop)),
+            QtCore.QUrl.fromLocalFile(str(second_drop)),
+        ]
+    )
+    file_drop.setImageData(clipboard_image)
+    dialog.input.insertFromMimeData(file_drop)
+    require(
+        len(dialog._draft_images) == 2
+        and all(
+            Path(attachment.path) not in {first_drop, second_drop}
+            for attachment in dialog._draft_images
+        ),
+        "multi-file drop did not take precedence over fallback image data",
+    )
+    dropped_ids = [
+        attachment.attachment_id for attachment in dialog._draft_images
+    ]
+    for attachment_id in dropped_ids:
+        dialog._remove_image_attachment(attachment_id)
+    require(
+        not dialog._draft_images and not dialog.attachment_widget.isVisible(),
+        "removing dropped image attachments did not clear the draft row",
     )
     client.thread_id = None
     dialog._finish_turn_ui()
@@ -1512,6 +1691,50 @@ def main():
             docked_dialog.transcript.height(),
         ),
     )
+    selector_footer_geometry = QtCore.QRect(
+        docked_dialog.footer_widget.geometry()
+    )
+    docked_dialog._set_codex_selector_visible(False)
+    app.processEvents(QtCore.QEventLoop.AllEvents)
+    require(
+        docked_dialog.footer_widget.height()
+        == docked_dialog.footer_widget.layout().sizeHint().height(),
+        "hiding the Codex selector did not immediately resize the dock footer",
+    )
+    docked_dialog._set_codex_selector_visible(True)
+    app.processEvents(QtCore.QEventLoop.AllEvents)
+    require(
+        docked_dialog.footer_widget.geometry() == selector_footer_geometry
+        and docked_dialog.footer_widget.height()
+        == docked_dialog.footer_widget.layout().sizeHint().height(),
+        "the dock footer did not return to its original selector geometry",
+    )
+    themed_attachment = QtGui.QImage(
+        32,
+        24,
+        QtGui.QImage.Format_ARGB32,
+    )
+    themed_attachment.fill(QtGui.QColor("#008b8b"))
+    footer_without_attachment_height = docked_dialog.footer_widget.height()
+    docked_dialog._add_clipboard_image(themed_attachment)
+    app.processEvents(QtCore.QEventLoop.AllEvents)
+    themed_chip = docked_dialog.attachment_widget.findChild(
+        ui.ImageAttachmentChip,
+        "codex_for_pymol_image_attachment",
+    )
+    require(
+        themed_chip is not None
+        and "color: rgba(232, 232, 232, 255)"
+        in themed_chip.styleSheet(),
+        "image attachment text does not follow the dark foreground",
+    )
+    require(
+        docked_dialog.footer_widget.height()
+        > footer_without_attachment_height
+        and docked_dialog.footer_widget.height()
+        == docked_dialog.footer_widget.layout().sizeHint().height(),
+        "showing an image attachment did not resize the footer exactly once",
+    )
     themed_model_dialog = ui.ModelSettingsDialog(
         [first_model, second_model],
         parent=docked_dialog,
@@ -1621,6 +1844,19 @@ def main():
         "rgba(32, 32, 32, 72)"
         in docked_dialog.status_separator.styleSheet(),
         "status separator did not follow the light console foreground",
+    )
+    require(
+        "color: rgba(32, 32, 32, 255)" in themed_chip.styleSheet(),
+        "image attachment text did not follow the light foreground",
+    )
+    docked_dialog._clear_image_attachments()
+    app.processEvents(QtCore.QEventLoop.AllEvents)
+    require(
+        docked_dialog.footer_widget.height()
+        == footer_without_attachment_height
+        and docked_dialog.footer_widget.height()
+        == docked_dialog.footer_widget.layout().sizeHint().height(),
+        "clearing image attachments did not restore the compact footer",
     )
     docked_dialog._model_settings_dialog = None
     themed_model_dialog.close()
@@ -1737,6 +1973,9 @@ def main():
     send_center = docked_dialog.send_button.mapTo(
         docked_dialog, docked_dialog.send_button.rect().center()
     ).y()
+    attach_center = docked_dialog.attach_button.mapTo(
+        docked_dialog, docked_dialog.attach_button.rect().center()
+    ).y()
     python_center = docked_dialog.python_checkbox.mapTo(
         docked_dialog, docked_dialog.python_checkbox.rect().center()
     ).y()
@@ -1749,6 +1988,7 @@ def main():
     ).y()
     require(
         abs(send_center - python_center) <= 2
+        and abs(send_center - attach_center) <= 2
         and abs(send_center - model_settings_center) <= 2
         and abs(send_center - undo_center) <= 2,
         "model, Python, or checkpoint controls do not share the action row",
@@ -1756,17 +1996,18 @@ def main():
     require(
         docked_dialog.action_row.spacing() == 6
         and docked_dialog.action_row.indexOf(docked_dialog.send_button) == 0
-        and docked_dialog.action_row.indexOf(docked_dialog.stop_button) == 1
-        and docked_dialog.action_row.indexOf(docked_dialog.new_button) == 2
+        and docked_dialog.action_row.indexOf(docked_dialog.attach_button) == 1
+        and docked_dialog.action_row.indexOf(docked_dialog.stop_button) == 2
+        and docked_dialog.action_row.indexOf(docked_dialog.new_button) == 3
         and docked_dialog.action_row.indexOf(
             docked_dialog.model_settings_button
         )
-        == 3
+        == 4
         and docked_dialog.action_row.indexOf(
             docked_dialog.python_checkbox
         )
-        == 5
-        and docked_dialog.action_row.indexOf(docked_dialog.undo_button) == 6,
+        == 6
+        and docked_dialog.action_row.indexOf(docked_dialog.undo_button) == 7,
         "action controls do not have the requested breathing room",
     )
     require(
@@ -1854,6 +2095,10 @@ def main():
     protocol_client.close()
     dialog.settings.clear()
     dialog.close()
+    require(
+        not normalized_path.exists(),
+        "temporary conversation images survived plugin shutdown",
+    )
     docked_dialog.shutdown()
     main_window.close()
     app.processEvents(QtCore.QEventLoop.AllEvents)

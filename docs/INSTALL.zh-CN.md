@@ -73,7 +73,7 @@ $env:CODEX_FOR_PYMOL_EXECUTABLE = "C:\Tools\codex.exe"
 
 ### 安装发布版本
 
-打开[最新 GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest)，在 **Assets** 中下载 `codex-for-pymol-X.Y.Z.zip`，其中 `X.Y.Z` 应与发布版本号一致。不要选择 GitHub 自动生成的 **Source code (zip)** 或 **Source code (tar.gz)**；它们只是仓库源码快照，不是可安装的 PyMOL 插件。不要解压插件 zip。
+打开[最新 GitHub Release](https://github.com/Codex-for-Everything/codex-for-pymol/releases/latest)，在 **Assets** 中下载 `codex-for-pymol-X.Y.Z.zip`，其中 `X.Y.Z` 应与发布版本号一致。不要选择 GitHub 自动生成的 **Source code (zip)** 或 **Source code (tar.gz)**；它们只是仓库源码快照，不是可安装的 PyMOL 插件。不要解压插件 zip。
 
 在 PyMOL 中选择：
 
@@ -141,6 +141,7 @@ Codex 准备下载结构或打开本地结构文件时，PyMOL 会先请求你�
 | 控件 | 用途 |
 | --- | --- |
 | **发送** | 发送消息 |
+| **添加图片…** | 为当前消息添加最多四张图片 |
 | **停止** | 请求 Codex 停止当前处理 |
 | **新建对话** | 开始一段全新对话 |
 | **设置…** | 修改界面语言、模型、推理强度或响应速度 |
@@ -149,7 +150,10 @@ Codex 准备下载结构或打开本地结构文件时，PyMOL 会先请求你�
 
 - `Enter`：发送；
 - `Ctrl+Enter` 或 `Shift+Enter`：插入换行；
+- 把图片粘贴到消息框，或把本地图片文件拖放到消息框：添加图片；
 - `Esc`：在主面板中不会关闭面板；在独立对话框中会取消该对话框。
+
+消息中存在图片时，按钮上方会显示附件栏；点击图片右侧的关闭按钮即可移除。消息可以同时包含文字和图片，也可以只包含图片。如果所选模型明确报告不支持图片，插件会保留当前草稿，并提示选择其他模型。
 
 聊天记录初始为四行高，输入框为两行高；内容过长时会在各自区域内滚动。拖动面板上方的分隔线可以调整高度。聊天记录会使用增加的空间，操作控件始终固定在底部。嵌入 PyMOL 时，颜色、字体和滚动条会跟随原生控制台。
 
@@ -181,7 +185,9 @@ Codex 准备下载结构或打开本地结构文件时，PyMOL 会先请求你�
 
 ## 7. 数据与隐私
 
-发送给 Codex 的结构摘要和截图会成为模型对话的一部分。处理未公开或受监管的结构前，请先确认所在组织的数据政策。
+发送给 Codex 的结构摘要、截图和添加的图片会成为模型对话的一部分。处理未公开、受监管或其他敏感材料前，请先确认所在组织的数据政策。
+
+插件会解码每张添加的图片、限制其尺寸，并使用随机名称在当前对话的私有临时目录中重新保存为 PNG。Codex 接收的是该临时路径而不是原始路径，来源图片的元数据也不会保留。新建对话或插件正常关闭时会删除临时图片副本。每条消息最多可以添加四张图片；发送前还会检查文件大小、像素数量和当前对话的临时图片总量。
 
 每次启动 PyMOL 都会创建新的临时 Codex 对话，不会恢复旧对话。插件只有在 `thread/start` 返回结果明确确认新对话不会写入历史记录后才会进入就绪状态。如果当前 Codex 无法确认这一点，插件会拒绝使用该对话、尝试删除尚未使用的记录并停止；如果删除也失败，面板会指出可能需要在 Codex 中手动删除的记录。
 
@@ -253,6 +259,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 ```bash
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_smoke.py
+PYTHONPATH=src /path/to/pymol/python scripts/pymol_image_inputs_smoke.py
 PYTHONPATH=src /path/to/pymol/python scripts/pymol_ui_smoke.py
 PYTHONPATH=src /path/to/pymol/launcher -k -r scripts/pymol_dock_smoke.py
 ```

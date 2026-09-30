@@ -14,6 +14,7 @@ from codex_for_pymol.protocol import (
     is_active_tool_call,
     is_current_notification,
     is_reconnect_notice,
+    model_supports_input,
     notification_turn_id,
     validated_ephemeral_thread_id,
     strip_ansi,
@@ -21,6 +22,31 @@ from codex_for_pymol.protocol import (
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_model_input_modality_uses_selected_or_default_catalog_entry(self):
+        catalog = [
+            {
+                "model": "text-only",
+                "isDefault": False,
+                "inputModalities": ["text"],
+            },
+            {
+                "model": "vision",
+                "isDefault": True,
+                "inputModalities": ["text", "image"],
+            },
+        ]
+        self.assertTrue(model_supports_input(catalog, "", "image"))
+        self.assertFalse(
+            model_supports_input(catalog, "text-only", "image")
+        )
+        self.assertTrue(model_supports_input(catalog, "vision", "text"))
+
+    def test_model_input_modality_is_unknown_without_explicit_metadata(self):
+        self.assertIsNone(
+            model_supports_input([{"model": "legacy", "isDefault": True}], "", "image")
+        )
+        self.assertIsNone(model_supports_input([], "missing", "image"))
+
     def test_ephemeral_thread_response_must_be_explicitly_confirmed(self):
         self.assertEqual(
             validated_ephemeral_thread_id(

@@ -40,6 +40,7 @@ Detailed guide: [English](docs/INSTALL.md) | [简体中文](docs/INSTALL.zh-CN.m
 - Inspect loaded objects, chains, residues, ligands, selections, and the view.
 - Download a structure or open a local structure file after asking permission.
 - Show, hide, color, select, center, orient, label, and measure structures.
+- Send ordinary image attachments to Codex together with, or instead of, text.
 - Return PyMOL screenshots to Codex so it can check the visual result.
 - Keep one undo point for each recent user request that changed PyMOL.
 - Use unrestricted Python only when you explicitly enable and approve it.
@@ -65,7 +66,7 @@ The plugin does not install extra Python packages into PyMOL.
 
 ## Quick start
 
-1. Open the [latest GitHub Release](https://github.com/wuhuawei1996/codex-for-pymol/releases/latest) and download `codex-for-pymol-X.Y.Z.zip` from **Assets**, where `X.Y.Z` is the release version. Do not download GitHub's automatically generated **Source code** archives, and do not extract the plugin zip.
+1. Open the [latest GitHub Release](https://github.com/Codex-for-Everything/codex-for-pymol/releases/latest) and download `codex-for-pymol-X.Y.Z.zip` from **Assets**, where `X.Y.Z` is the release version. Do not download GitHub's automatically generated **Source code** archives, and do not extract the plugin zip.
 2. In PyMOL, open:
 
    ```text
@@ -95,13 +96,15 @@ You can also enter `codex_chat` in the PyMOL command line. See the
 | Control | Purpose |
 | --- | --- |
 | **Send** | Send the current message |
+| **Add image…** | Attach up to four images to the current message |
 | **Stop** | Ask Codex to stop the current turn |
 | **New conversation** | Clear the transcript and start a fresh Codex conversation |
 | **Settings…** | Change the interface language and choose options returned by the current Codex account |
 | **Enable unrestricted Python (high risk)** | Allow separately approved Python code to run inside PyMOL |
 | **Undo the latest turn's changes** | Restore PyMOL to before the latest user request that changed it |
 
-`Enter` sends. `Ctrl+Enter` or `Shift+Enter` inserts a line break. Pressing
+`Enter` sends. `Ctrl+Enter` or `Shift+Enter` inserts a line break. You can also
+paste an image or drag local image files into the message editor. Pressing
 `Esc` in the main panel does not close it.
 
 The panel opens with a four-line transcript and a two-line message editor.
@@ -145,9 +148,13 @@ point. **Undo the latest turn's changes** can restore PyMOL session state, but i
 undo files, downloads, network activity, installed packages, or external
 programs.
 
-Structure summaries and screenshots sent to Codex become part of the model
-conversation. Do not use unpublished or regulated structures unless that is
-allowed by your organization.
+Structure summaries, screenshots, and images you attach become part of the
+model conversation. Do not use unpublished, regulated, or otherwise sensitive
+material unless that is allowed by your organization. Attached images are
+decoded and saved as private temporary PNG files for the current conversation;
+the original path and image metadata are not sent. The temporary copies are
+removed when a new conversation replaces the current one or the plugin shuts
+down normally.
 
 The plugin also stores local audit logs, screenshots, and temporary undo
 points. Audit logs may contain your messages, tool details, code, and local

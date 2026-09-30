@@ -52,6 +52,14 @@ class I18nTests(unittest.TestCase):
             "Error: failed",
         )
 
+    def test_status_text_has_locale_appropriate_terminal_punctuation(self):
+        i18n.set_locale(i18n.ZH_CN)
+        self.assertEqual(i18n.status_text("设置已保存"), "设置已保存。")
+        self.assertEqual(i18n.status_text("正在处理…"), "正在处理…")
+        i18n.set_locale(i18n.EN)
+        self.assertEqual(i18n.status_text("Settings saved"), "Settings saved.")
+        self.assertEqual(i18n.status_text("Working…"), "Working…")
+
     def test_first_use_follows_system_then_persists_user_choice(self):
         settings = FakeSettings()
         preferences = PreferenceStore(settings, "zh-Hans")

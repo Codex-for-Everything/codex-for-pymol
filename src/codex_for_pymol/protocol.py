@@ -176,6 +176,34 @@ def validated_ephemeral_thread_id(result):
     return thread_id
 
 
+def model_supports_input(catalog, model, modality):
+    """Return a catalog's explicit modality support, or ``None`` if unknown."""
+    items = [item for item in (catalog or ()) if isinstance(item, dict)]
+    selected = None
+    if model:
+        selected = next(
+            (
+                item
+                for item in items
+                if str(item.get("model") or item.get("id") or "") == str(model)
+            ),
+            None,
+        )
+    else:
+        selected = next(
+            (item for item in items if item.get("isDefault") is True),
+            None,
+        )
+    if selected is None:
+        return None
+    modalities = selected.get("inputModalities")
+    if not isinstance(modalities, list):
+        return None
+    return str(modality) in {
+        str(value) for value in modalities if isinstance(value, str)
+    }
+
+
 class Utf8ChunkDecoder:
     """Decode arbitrarily split process output without corrupting UTF-8."""
 

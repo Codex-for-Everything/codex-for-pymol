@@ -268,6 +268,24 @@ def run_test():
         QtCore.QTimer.singleShot(150, release_wait.quit)
         release_wait.exec_()
         QtWidgets.QApplication.processEvents()
+        selector_footer_geometry = QtCore.QRect(
+            dialog.footer_widget.geometry()
+        )
+        dialog._set_codex_selector_visible(False)
+        QtWidgets.QApplication.processEvents()
+        require(
+            dialog.footer_widget.height()
+            == dialog.footer_widget.layout().sizeHint().height(),
+            "real footer retained a stale height after hiding the selector",
+        )
+        dialog._set_codex_selector_visible(True)
+        QtWidgets.QApplication.processEvents()
+        require(
+            dialog.footer_widget.geometry() == selector_footer_geometry
+            and dialog.footer_widget.height()
+            == dialog.footer_widget.layout().sizeHint().height(),
+            "real footer did not restore its selector geometry",
+        )
         dialog.transcript.setPlainText(
             "\n".join("message {}".format(index) for index in range(100))
         )

@@ -47,7 +47,7 @@ git push origin "v$VERSION"
 
 公开 Release 中包含带版本号的 `codex-for-pymol-X.Y.Z.zip` 和 `SHA256SUMS.txt`。GitHub 会自动提供源码 ZIP 和 tar 压缩包。工作流仍会构建 wheel 和 Python 源码包来检查打包配置，但不会把它们作为 Release 附件，因为普通 PyMOL 用户应当安装插件 ZIP。
 
-推送标签后，请等待 **Release** 工作流成功结束，不要再手动创建 Release 或上传文件。只有工作流发布成功后，[Releases 页面](https://github.com/wuhuawei1996/codex-for-pymol/releases)才会出现可供下载的安装包。
+推送标签后，请等待 **Release** 工作流成功结束，不要再手动创建 Release 或上传文件。只有工作流发布成功后，[Releases 页面](https://github.com/Codex-for-Everything/codex-for-pymol/releases)才会出现可供下载的安装包。
 
 整个过程不需要个人访问令牌、Codex 凭证或 API Key。最终任务只使用 GitHub 为当前工作流临时签发的仓库令牌，并且只申请 `contents: write` 权限。
 

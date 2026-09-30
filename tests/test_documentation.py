@@ -18,7 +18,7 @@ RELEASE_DOCS = [
 ]
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 LATEST_RELEASE_URL = (
-    "https://github.com/wuhuawei1996/codex-for-pymol/releases/latest"
+    "https://github.com/Codex-for-Everything/codex-for-pymol/releases/latest"
 )
 VERSIONED_ASSET_EXAMPLE = "codex-for-pymol-X.Y.Z.zip"
 CJK = r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff"
@@ -220,6 +220,8 @@ class DocumentationTests(unittest.TestCase):
         self.assertNotIn("#PyMOL plugin installer", workflow)
         self.assertNotIn("#SHA-256 checksum", workflow)
         self.assertIn("RELEASE_INSTALL_NOTES: |-", workflow)
+        self.assertIn("0.6.0 新增图片输入", workflow)
+        self.assertIn("Version 0.6.0 adds image input", workflow)
         self.assertRegex(
             workflow,
             r"Windows：0\.3\.2[^\n]+0\.4\.0[^\n]+\n\s*\n\s*安装：",

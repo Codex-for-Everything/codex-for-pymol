@@ -1,7 +1,9 @@
 import importlib
+import tempfile
 import sys
 import types
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from codex_for_pymol.discovery import ProcessInvocation
@@ -320,6 +322,76 @@ class AppServerThreadTests(unittest.TestCase):
         self.assertNotIn("serviceTier", params)
         self.assertTrue(client._turn_active)
         self.assertTrue(callable(callback))
+
+    def test_turn_can_send_text_and_normalized_local_images(self):
+        client = _client(generation=15)
+        client.thread_id = "verified-thread"
+        with tempfile.TemporaryDirectory() as directory:
+            client.runtime_directory = directory
+            attachments = Path(directory) / "attachments"
+            attachments.mkdir()
+            first = attachments / "first.png"
+            second = attachments / "second.png"
+            first.touch()
+            second.touch()
+
+            client.start_turn(
+                "compare these",
+                image_paths=[str(first), str(second)],
+            )
+
+        params = client.send_request.call_args.args[1]
+        self.assertEqual(
+            params["input"],
+            [
+                {"type": "text", "text": "compare these"},
+                {"type": "localImage", "path": str(first.resolve())},
+                {"type": "localImage", "path": str(second.resolve())},
+            ],
+        )
+
+    def test_turn_can_contain_only_an_image(self):
+        client = _client(generation=15)
+        client.thread_id = "verified-thread"
+        with tempfile.TemporaryDirectory() as directory:
+            client.runtime_directory = directory
+            attachments = Path(directory) / "attachments"
+            attachments.mkdir()
+            image = attachments / "image.png"
+            image.touch()
+
+            client.start_turn("", image_paths=[str(image)])
+
+        params = client.send_request.call_args.args[1]
+        self.assertEqual(
+            params["input"],
+            [{"type": "localImage", "path": str(image.resolve())}],
+        )
+
+    def test_missing_image_is_rejected_before_turn_start(self):
+        client = _client(generation=15)
+        client.thread_id = "verified-thread"
+
+        with self.assertRaises(ValueError):
+            client.start_turn("look", image_paths=["missing.png"])
+
+        client.send_request.assert_not_called()
+        self.assertFalse(client._turn_active)
+
+    def test_image_outside_private_attachment_directory_is_rejected(self):
+        client = _client(generation=15)
+        client.thread_id = "verified-thread"
+        with tempfile.TemporaryDirectory() as directory:
+            client.runtime_directory = directory
+            (Path(directory) / "attachments").mkdir()
+            outside = Path(directory) / "outside.png"
+            outside.touch()
+
+            with self.assertRaises(ValueError):
+                client.start_turn("look", image_paths=[str(outside)])
+
+        client.send_request.assert_not_called()
+        self.assertFalse(client._turn_active)
 
     def test_malformed_model_pages_fail_instead_of_validating_empty_catalog(self):
         invalid_results = [None, {}, {"data": {}}, {"data": [], "nextCursor": 7}]

@@ -52,6 +52,7 @@ CATALOGS = {
         "button.select_codex": "选择 Codex…",
         "button.reselect_codex": "重新选择 Codex…",
         "button.send": "发送",
+        "button.attach_image": "添加图片…",
         "button.stop": "停止",
         "button.new_chat": "新建对话",
         "button.settings": "设置…",
@@ -61,9 +62,26 @@ CATALOGS = {
         "undo.tooltip": "恢复到最新一轮曾修改 PyMOL 的用户请求开始前。不能撤销普通文件、网络或外部程序的副作用。",
         "file.codex_title": "选择 Codex 可执行文件",
         "file.codex_filter_windows": "Codex 启动器 (*.exe *.cmd *.bat)",
+        "file.image_title": "选择图片",
+        "file.image_filter": "图片 (*.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff);;所有文件 (*)",
         "file.all": "所有文件 (*)",
         "error.invalid_windows_launcher": "Windows 仅支持 codex.exe、codex.cmd 或 codex.bat，不能直接选择 .js、.ps1 或其他脚本。",
         "error.codex_not_found": "未找到 Codex CLI。请点击“选择 Codex…”指定其位置。",
+        "error.image_count": "每条消息最多可以添加 {count} 张图片。",
+        "error.image_unreadable": "无法读取所选图片。",
+        "error.image_unsupported": "不支持这种图片格式。请选择 PNG、JPEG、WebP、GIF、BMP 或 TIFF 图片。",
+        "error.image_animated": "暂不支持动画或多帧图片。请先导出其中一帧再添加。",
+        "error.image_source_too_large": "所选图片文件过大。单个原始文件不能超过 50 MiB。",
+        "error.image_dimensions_too_large": "所选图片的像素尺寸过大。请先缩小图片后再添加。",
+        "error.image_save_failed": "无法把图片保存到当前对话的临时目录。",
+        "error.image_normalized_too_large": "图片转换后仍然过大。请先缩小或压缩图片后再添加。",
+        "error.image_storage_limit": "当前对话的临时图片已达到 200 MiB 上限。请新建对话后再添加。",
+        "error.model_no_image": "当前所选模型明确不支持图片输入。请在设置中选择支持图片的模型。",
+        "image.attachment_label": "图片 {width}×{height}",
+        "image.attach_tooltip": "添加图片；也可以把图片粘贴或拖放到消息框。图片会发送给 Codex。",
+        "image.remove_tooltip": "移除这张图片",
+        "image.remove_accessible": "移除 {width}×{height} 图片",
+        "image.sent": "[图片 × {count}]",
         "system.connected": "已连接到 Codex。",
         "system.stop_requested": "已请求停止。已经在 PyMOL 内运行的代码可能无法中断。",
         "system.model_reset": "已保存的模型配置当前不可用，已恢复相应的默认选项。",
@@ -125,6 +143,8 @@ CATALOGS = {
         "backend.unsafe_thread": "无法安全创建 Codex 对话：{detail}。插件已拒绝使用该对话；如果 Codex 返回了可识别的空对话，插件还会尝试移除它。请升级 Codex 后重试。",
         "backend.cleanup_thread": "无法移除 Codex 意外保存的空对话 {thread_id}：{detail}。请在 Codex 中手动删除该记录。",
         "backend.thread_not_ready": "Codex 对话尚未就绪",
+        "backend.empty_input": "消息中没有文字或图片",
+        "backend.image_unavailable": "准备发送的临时图片已经不可用，请重新添加。",
         "backend.processing": "Codex 正在处理…",
         "backend.send_failed": "无法发送消息：{detail}",
         "backend.stop_queued": "停止请求已排队，等待 Codex 接收当前任务…",
@@ -197,6 +217,7 @@ CATALOGS = {
         "button.select_codex": "Choose Codex…",
         "button.reselect_codex": "Choose another Codex…",
         "button.send": "Send",
+        "button.attach_image": "Add image…",
         "button.stop": "Stop",
         "button.new_chat": "New conversation",
         "button.settings": "Settings…",
@@ -206,9 +227,26 @@ CATALOGS = {
         "undo.tooltip": "Restore PyMOL to before the latest user request that changed it. This cannot undo file, network, or external-program side effects.",
         "file.codex_title": "Choose the Codex executable",
         "file.codex_filter_windows": "Codex launchers (*.exe *.cmd *.bat)",
+        "file.image_title": "Choose images",
+        "file.image_filter": "Images (*.png *.jpg *.jpeg *.webp *.gif *.bmp *.tif *.tiff);;All files (*)",
         "file.all": "All files (*)",
         "error.invalid_windows_launcher": "Windows supports only codex.exe, codex.cmd, or codex.bat; .js, .ps1, and other scripts cannot be selected directly.",
         "error.codex_not_found": "Codex CLI was not found. Click “Choose Codex…” to specify its location.",
+        "error.image_count": "You can attach up to {count} images to one message.",
+        "error.image_unreadable": "The selected image could not be read.",
+        "error.image_unsupported": "That image format is not supported. Choose a PNG, JPEG, WebP, GIF, BMP, or TIFF image.",
+        "error.image_animated": "Animated or multi-frame images are not supported. Export one frame before attaching it.",
+        "error.image_source_too_large": "The selected image is too large. One source file cannot exceed 50 MiB.",
+        "error.image_dimensions_too_large": "The selected image has too many pixels. Resize it before attaching it.",
+        "error.image_save_failed": "The image could not be saved in this conversation's temporary directory.",
+        "error.image_normalized_too_large": "The converted image is still too large. Resize or compress it before attaching it.",
+        "error.image_storage_limit": "Temporary images for this conversation have reached the 200 MiB limit. Start a new conversation before attaching more.",
+        "error.model_no_image": "The selected model explicitly does not support image input. Choose an image-capable model in Settings.",
+        "image.attachment_label": "Image {width}×{height}",
+        "image.attach_tooltip": "Attach images, or paste or drop them into the message editor. Images are sent to Codex.",
+        "image.remove_tooltip": "Remove this image",
+        "image.remove_accessible": "Remove {width}×{height} image",
+        "image.sent": "[Image × {count}]",
         "system.connected": "Connected to Codex.",
         "system.stop_requested": "Stop requested. Code already running inside PyMOL may not be interruptible.",
         "system.model_reset": "The saved model settings are no longer available and were reset to the corresponding defaults.",
@@ -270,6 +308,8 @@ CATALOGS = {
         "backend.unsafe_thread": "Could not safely create a Codex conversation: {detail}. The plugin rejected it; if Codex returned a recognizable empty conversation, the plugin will also try to remove it. Upgrade Codex and try again.",
         "backend.cleanup_thread": "Could not remove the empty conversation {thread_id} that Codex unexpectedly saved: {detail}. Delete this record manually in Codex.",
         "backend.thread_not_ready": "The Codex conversation is not ready",
+        "backend.empty_input": "The message contains no text or images",
+        "backend.image_unavailable": "A temporary image is no longer available. Attach it again.",
         "backend.processing": "Codex is working…",
         "backend.send_failed": "Could not send the message: {detail}",
         "backend.stop_queued": "Stop request queued while Codex accepts the current task…",
@@ -320,6 +360,14 @@ def set_locale(locale):
 
 def get_locale():
     return _locale
+
+
+def status_text(value):
+    """Return a status-line sentence with locale-appropriate punctuation."""
+    value = str(value or "").rstrip()
+    if not value or value[-1] in ".!?。！？…":
+        return value
+    return value + ("。" if _locale == ZH_CN else ".")
 
 
 def text(key, **params):
